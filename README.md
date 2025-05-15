@@ -15,6 +15,6 @@ TODO:
 ➡ Check out similar projects
 
 
-Due date: 19 May 25 (Monday)
+Due date: 26 May 25 (Monday)
 
 --------------------------------------------------------
