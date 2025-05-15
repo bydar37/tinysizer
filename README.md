@@ -9,7 +9,7 @@ TODO:
 ➡ Decide on the project structure
 
 
-<summary>➡ Decide on the programming language(s)</summary>
+➡ Decide on the programming language(s)</summary>
 
 | Language | Speed  | Ease of Use | Best For                         |
 | -------- | ------ | ----------- | -------------------------------- |
