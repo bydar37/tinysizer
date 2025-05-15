@@ -4,11 +4,11 @@
 
 TODO: 
 
-➡ Breakdown all the requirements
+🔴 Breakdown all the requirements
 
-➡ Decide on the project structure
+🔴 Decide on the project structure
 
-➡ Decide on the programming language(s)</summary>
+🟢 Decide on the programming language(s)</summary>
 
 | Language | Speed  | Ease of Use | Best For                         |
 | -------- | ------ | ----------- | -------------------------------- |
@@ -20,9 +20,9 @@ TODO:
 
 **Recommended**: Use **C++** — especially with modern features (`std::string_view`, `std::vector`, `unordered_map`, etc.).
 
-➡ Learn about software systems/managent
+🔴 Learn about software systems/managent
 
-➡ Check out similar projects
+🔴 Check out similar projects
 
 
 Due date: 26 May 25 (Monday)
