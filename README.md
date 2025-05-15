@@ -3,6 +3,7 @@
 --------------------------------------------------------
 
 TODO: 
+
 ➡ Breakdown all the requirements
 
 ➡ Decide on the project structure
@@ -12,6 +13,7 @@ TODO:
 ➡ Learn about software systems/managent
 
 ➡ Check out similar projects
+
 
 Due date: 19 May 25 (Monday)
 
