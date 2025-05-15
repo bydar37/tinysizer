@@ -9,6 +9,7 @@ TODO:
 ➡ Decide on the project structure
 
 ➡ Decide on the programming language(s)
+
     for backend:
     ![image](https://github.com/user-attachments/assets/7ff76f99-5439-4b69-b229-1ed5fce55a74)
 
