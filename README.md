@@ -8,7 +8,7 @@ TODO:
 
 ➡ Decide on the project structure
 
-<details>
+
 <summary>➡ Decide on the programming language(s)</summary>
 
 | Language | Speed  | Ease of Use | Best For                         |
@@ -21,7 +21,7 @@ TODO:
 
 **Recommended**: Use **C++** — especially with modern features (`std::string_view`, `std::vector`, `unordered_map`, etc.).
 
-</details>
+
 
 
 ➡ Learn about software systems/managent
