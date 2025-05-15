@@ -8,7 +8,6 @@ TODO:
 
 ➡ Decide on the project structure
 
-
 ➡ Decide on the programming language(s)</summary>
 
 | Language | Speed  | Ease of Use | Best For                         |
@@ -20,9 +19,6 @@ TODO:
 | Python   | 🔥     | 😍😍😍      | High-level scripting, slow parse |
 
 **Recommended**: Use **C++** — especially with modern features (`std::string_view`, `std::vector`, `unordered_map`, etc.).
-
-
-
 
 ➡ Learn about software systems/managent
 
