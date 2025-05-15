@@ -9,7 +9,7 @@ TODO:
 ➡ Decide on the project structure
 
 ➡ Decide on the programming language(s)
-    <br>
+    <p>
     | Language | Speed  | Ease of Use | Best For                         |
     | -------- | ------ | ----------- | -------------------------------- |
     | C        | 🔥🔥🔥 | 😬          | Raw parsing, embedded systems    |
@@ -17,7 +17,7 @@ TODO:
     | Rust     | 🔥🔥🔥 | 😐          | Safety + speed (steeper curve)   |
     | Go       | 🔥🔥   | 😀😀        | Simpler tools, CLI apps          |
     | Python   | 🔥     | 😍😍😍      | High-level scripting, slow parse |
-    <br>
+    </p>
     Recommended: Use C++ — especially with modern features (std::string_view, std::vector, unordered_map, etc.).
 
 ➡ Learn about software systems/managent
