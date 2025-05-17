@@ -10,6 +10,7 @@ TODO:
 - Load Files
 - Visualize Files
 
+
 🟢 Decide on the project structure
 
 ```
@@ -26,6 +27,7 @@ tinysizer/
 └── visualization/
     └── placeholder.py
 ```
+
  
 🟢 Decide on the programming language(s)</summary>
 
@@ -41,9 +43,11 @@ tinysizer/
 
 -> YET WE CHOSE PYTHON !!!
 
+
 🔴 Learn about software systems/managent
 
 keywords: software architecture, software design (pattern), architectural patterns
+
 
 🔴 Check out similar projects
 
