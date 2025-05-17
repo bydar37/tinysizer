@@ -4,10 +4,28 @@
 
 TODO: 
 
-🔴 Breakdown all the requirements
+🟢 Breakdown all the requirements
 
-🔴 Decide on the project structure
+For now:
+  *Build gui
+  *Load files
+  *Visualize the files
 
+🟢 Decide on the project structure
+
+tinysizer/
+├── analysis/
+│   └── placeholder.py
+├── file/
+│   └── placeholder.py
+├── gui/
+│   ├── placeholder.py
+│   └── pics/
+├── utils/
+│   └── placeholder.py
+└── visualization/
+    └── placeholder.py
+    
 🟢 Decide on the programming language(s)</summary>
 
 | Language | Speed  | Ease of Use | Best For                         |
@@ -20,7 +38,11 @@ TODO:
 
 **Recommended**: Use **C++** — especially with modern features (`std::string_view`, `std::vector`, `unordered_map`, etc.).
 
+-> YET WE CHOSE PYTHON !!!
+
 🔴 Learn about software systems/managent
+
+keywords: software architecture, software design (pattern), architectural patterns
 
 🔴 Check out similar projects
 
