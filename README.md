@@ -4,17 +4,54 @@
 
 TODO: 
 
-➡ Breakdown all the requirements
+🟢 Breakdown all the requirements (initially)
 
-➡ Decide on the project structure
-
-➡ Decide on the programming language(s)
-
-➡ Learn about software systems/managent
-
-➡ Check out similar projects
+- Build GUI
+- Load Files
+- Visualize Files
 
 
-Due date: 19 May 25 (Monday)
+🟢 Decide on the project structure
+
+```
+tinysizer/
+├── analysis/
+│   └── placeholder.py
+├── file/
+│   └── placeholder.py
+├── gui/
+│   ├── placeholder.py
+│   └── pics/
+├── utils/
+│   └── placeholder.py
+└── visualization/
+    └── placeholder.py
+```
+
+ 
+🟢 Decide on the programming language(s)</summary>
+
+| Language | Speed  | Ease of Use | Best For                         |
+| -------- | ------ | ----------- | -------------------------------- |
+| C        | 🔥🔥🔥 | 😬          | Raw parsing, embedded systems    |
+| C++      | 🔥🔥🔥 | 😀          | Clean, fast, modern parsing      |
+| Rust     | 🔥🔥🔥 | 😐          | Safety + speed (steeper curve)   |
+| Go       | 🔥🔥   | 😀😀        | Simpler tools, CLI apps          |
+| Python   | 🔥     | 😍😍😍      | High-level scripting, slow parse |
+
+**Recommended**: Use **C++** — especially with modern features (`std::string_view`, `std::vector`, `unordered_map`, etc.).
+
+-> YET WE CHOSE PYTHON !!!
+
+
+🔴 Learn about software systems/managent
+
+keywords: software architecture, software design (pattern), architectural patterns
+
+
+🔴 Check out similar projects
+
+
+Due date: 26 May 25 (Monday)
 
 --------------------------------------------------------
