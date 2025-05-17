@@ -6,12 +6,12 @@ TODO:
 
 🟢 Breakdown all the requirements
 
-```
+
 For now:
   *Build gui
   *Load files
   *Visualize the files
-```
+  
 
 🟢 Decide on the project structure
 
