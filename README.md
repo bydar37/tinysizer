@@ -4,13 +4,11 @@
 
 TODO: 
 
-🟢 Breakdown all the requirements
+🟢 Breakdown all the requirements (initially)
 
-For now:
-	-Build gui
-	-Load files
-  -Visualize the files
-  
+- Build GUI
+- Load Files
+- Visualize Files
 
 🟢 Decide on the project structure
 
