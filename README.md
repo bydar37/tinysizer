@@ -2,6 +2,8 @@
 
 --------------------------------------------------------
 
+![image](https://github.com/user-attachments/assets/da863d83-da1e-4fd8-85e3-104e788e6eac)
+
 TODO: 
 
 🟢 Breakdown all the requirements (initially)
@@ -53,7 +55,11 @@ keywords: software architecture, software design (pattern), architectural patter
 
 --------------------------------------------------------
 
+
 ISSUES & IMPROVEMENTS
+
 🔴 Integrating op2 data
+
 🔴 Making buttons somehow better, visually
+
 🔴 Populating model tree
