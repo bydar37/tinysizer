@@ -11,7 +11,22 @@ For now:
   *Load files
   *Visualize the files
 
-🟢 Decide on the project structure ``` tinysizer/ ├── analysis/ │ └── placeholder.py ├── file/ │ └── placeholder.py ├── gui/ │ ├── placeholder.py │ └── pics/ ├── utils/ │ └── placeholder.py └── visualization/ └── placeholder.py ```
+🟢 Decide on the project structure
+
+```
+tinysizer/
+├── analysis/
+│   └── placeholder.py
+├── file/
+│   └── placeholder.py
+├── gui/
+│   ├── placeholder.py
+│   └── pics/
+├── utils/
+│   └── placeholder.py
+└── visualization/
+    └── placeholder.py
+```
  
 🟢 Decide on the programming language(s)</summary>
 
