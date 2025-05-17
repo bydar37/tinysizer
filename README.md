@@ -16,18 +16,20 @@ TODO:
 🟢 Decide on the project structure
 
 ```
+main.py/
 tinysizer/
 ├── analysis/
-│   └── placeholder.py
+│   └── code.py
 ├── file/
-│   └── placeholder.py
+│   └── code.py
 ├── gui/
-│   ├── placeholder.py
+│   ├── code.py
 │   └── pics/
+|   └── styles/
 ├── utils/
-│   └── placeholder.py
+│   └── code.py
 └── visualization/
-    └── placeholder.py
+    └── code.py
 ```
 
  
