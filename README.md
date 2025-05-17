@@ -51,7 +51,9 @@ keywords: software architecture, software design (pattern), architectural patter
 
 🔴 Check out similar projects
 
-
-Due date: 26 May 25 (Monday)
-
 --------------------------------------------------------
+
+ISSUES & IMPROVEMENTS
+🔴 Integrating op2 data
+🔴 Making buttons somehow better, visually
+🔴 Populating model tree
