@@ -59,7 +59,6 @@ class ModelData:
             # Handle dataframe-based results (most common in newer versions)
             if hasattr(result_obj, 'dataframe'):
                 df = result_obj.dataframe.reset_index()
-                print(df.head())
                 
                 # Extract data based on result type
                 if result_type == 'DISPLACEMENT' or result_type == 'EIGENVECTORS':
@@ -334,7 +333,7 @@ def validate_and_load(bdf_file, op2_file=None):
     model_data = ModelData()
     
     if not os.path.exists(bdf_file):
-        return model_data, False, "BDF file path is empty"
+        return model_data, None, "BDF file path is empty"
     
     # Load BDF file
     try:
@@ -387,7 +386,7 @@ def validate_and_load(bdf_file, op2_file=None):
         for elem_type in model_data.elements:
             print(f"Loaded {len(model_data.elements[elem_type])} {elem_type} elements")
         
-        model_data.is_loaded = "only bdf"
+        model_data.is_loaded = "only_bdf"
         text = "BDF file loaded successfully"
 
     except Exception as e:
