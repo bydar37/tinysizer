@@ -2,6 +2,8 @@
 
 --------------------------------------------------------
 
+![image](https://github.com/user-attachments/assets/da863d83-da1e-4fd8-85e3-104e788e6eac)
+
 TODO: 
 
 🟢 Breakdown all the requirements (initially)
@@ -14,18 +16,20 @@ TODO:
 🟢 Decide on the project structure
 
 ```
+main.py/
 tinysizer/
 ├── analysis/
-│   └── placeholder.py
+│   └── code.py
 ├── file/
-│   └── placeholder.py
+│   └── code.py
 ├── gui/
-│   ├── placeholder.py
+│   ├── code.py
 │   └── pics/
+|   └── styles/
 ├── utils/
-│   └── placeholder.py
+│   └── code.py
 └── visualization/
-    └── placeholder.py
+    └── code.py
 ```
 
  
@@ -51,7 +55,13 @@ keywords: software architecture, software design (pattern), architectural patter
 
 🔴 Check out similar projects
 
-
-Due date: 26 May 25 (Monday)
-
 --------------------------------------------------------
+
+
+ISSUES & IMPROVEMENTS
+
+🔴 Integrating op2 data
+
+🔴 Making buttons somehow better, visually
+
+🔴 Populating model tree
