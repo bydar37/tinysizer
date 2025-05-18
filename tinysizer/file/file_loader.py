@@ -386,7 +386,7 @@ def validate_and_load(bdf_file, op2_file=None):
         for elem_type in model_data.elements:
             print(f"Loaded {len(model_data.elements[elem_type])} {elem_type} elements")
         
-        model_data.is_loaded = "only_bdf"
+        model_data.is_loaded = "only bdf"
         text = "BDF file loaded successfully"
 
     except Exception as e:
