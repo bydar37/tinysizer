@@ -61,10 +61,39 @@ QPushButton {
     padding: 6px 12px;
 }
 
+
 QPushButton:hover {
     background-color: #3c3c3c;
     border: 1px solid #888;
 }
+
+/* ---- display result button special edition ---- */
+QPushButton#displayResultButton {
+    background-color: #2d2d2d;
+    color: white;
+    border: 1px solid  #00aaff;
+    padding: 6px 12px;
+    border-radius: 5px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+QPushButton#displayResultButton:hover {
+    background-color: #3c3c3c;
+    border: 1px solid  #00aaff;
+}
+
+QPushButton#displayResultButton:pressed {
+    background-color: #3c3c3c;
+    border: 1px solid  #00aaff;
+}
+
+QPushButton#displayResultButton:disabled {
+    background-color: #555555;
+    color: #888888;
+    border: 1px solid #888888;
+}
+/* ---- display result button special edition ---- */
 
 QComboBox {
     background-color: #2e2e2e;

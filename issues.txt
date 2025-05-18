@@ -1,0 +1,9 @@
+[ISS180525]
+*	ekrani büyütünce resim uyum sağlamiyor xD
+*	displacementtan type çıkar
+*	result isimlerini daha düzgün vermek lazim
+**	force için mag hesapla ve bir şekilde plot et
+***	file_loader.py çok karışık daha sade bir şey yapılabilir mi, sürekli data store edeceğiz belki excelden alıp falan daha akıllıca bir class mimarisi oluşturulabilir mi ? (yada burayı bir abstraction sayıp arkamızı dönüp uzaklaşmalıyız)
+***	ancak burayi sürekli kullanacagiz iyi, sade, anlaşılır bir yapı ileride elimizi bayağı kolaylaştıracaktır.
+*	model tree ? bununla ne yapabiliriz yoksa çıkarmalı mı ?
+**	excel alip plot ettirebilmeliyiz ve excel çıkarabilmeliyiz
