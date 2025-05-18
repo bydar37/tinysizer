@@ -380,15 +380,19 @@ class PyVistaMeshPlotter(QFrame):
         example_datasets = dir(pv.examples)  # This gives you a list of available example datasets
         example_datasets = [dataset for dataset in example_datasets if not dataset.startswith('_')]
         random_example = random.choice(example_datasets)
-        dataset = getattr(pv.examples, random_example)()  # Call the example function
 
-        # Clear the previous plot (if any)
-        self.plotter.clear()
-        # Add the new dataset to the plotter
-        self.plotter.add_mesh(dataset, show_edges=True, edge_color='black')
-        # Optionally, reset camera to fit the new plot
-        self.plotter.reset_camera()
-        self.plotter.update()
+        try:
+            dataset = getattr(pv.examples, random_example)()  # Call the example function
+            # Clear the previous plot (if any)
+            self.plotter.clear()
+            # Add the new dataset to the plotter
+            self.plotter.add_mesh(dataset, show_edges=True, edge_color='black')
+            # Optionally, reset camera to fit the new plot
+            self.plotter.reset_camera()
+            self.plotter.update()
+        except Exception as e:
+            print(f"Random plot failed {e}, trying again...")
+            self.plot_something_random()
 
         # Plot the dataset
         self.has_rendered = True

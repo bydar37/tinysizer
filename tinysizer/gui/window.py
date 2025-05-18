@@ -239,8 +239,10 @@ class MainWindow(QMainWindow):
             self.pyv_plotter.resize(self.pyv_plotter.size())
             
             # Update geometry view with loaded data - just show the model initially
-            self.pyv_plotter.plot_something_random()
-          
+            self.pyv_plotter.plot_mesh(model_data)
+            
+            # Populate result selection controls if they exist
+            self.populate_result_controls(model_data)
 
             # Enable tabs and switch to geometry
             for i in range(self.tabs.count()):
@@ -277,7 +279,6 @@ class MainWindow(QMainWindow):
 
             else:
                 pass
-
 
     def handle_tab_change(self, index):
         """Show/hide tree view based on current tab"""
@@ -349,7 +350,7 @@ class MainWindow(QMainWindow):
             # Add "Magnitude" option for displacement
             if result_type == "DISPLACEMENT":
                 self.component_combo.addItem("Magnitude")
-                self.pyv_plotter = PyVistaMeshPlotter()
+                
             self.component_combo.addItems(components)
         except ValueError:
             pass
@@ -386,6 +387,7 @@ class MainWindow(QMainWindow):
         except ValueError:
             QMessageBox.warning(self, "Warning", "Invalid subcase ID!", QMessageBox.Ok)
             return
+        
     #----------------------
     def create_geometry_tab(self):
         """Create geometry tab with VTK viewer"""
