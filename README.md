@@ -60,8 +60,4 @@ keywords: software architecture, software design (pattern), architectural patter
 
 ISSUES & IMPROVEMENTS
 
-🔴 Integrating op2 data
-
-🔴 Making buttons somehow better, visually
-
-🔴 Populating model tree
+- read issues.txt please
