@@ -1,3 +1,9 @@
+TinySizer aims to be a lightweight structural sizing program which also includes cool visualization features for better interpretation of the given data.
+
+Our main mission for this program to be: lightweight, fast, aesthetically pleasing.
+
+By doing the above we are tryin to build something we would use (I guess).
+
 15.05.2025 START !!! 💨
 
 --------------------------------------------------------
