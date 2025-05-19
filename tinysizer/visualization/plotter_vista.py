@@ -31,7 +31,9 @@ class PyVistaMeshPlotter(QFrame):
         """Add coordinate axes to scene"""
         self.plotter.add_axes(xlabel='X', ylabel='Y', zlabel='Z', 
                               line_width=2, labels_off=False)
-        
+
+
+    #THE MAIN GUY, PLOTU YAPAN FONKSIYON   
     def plot_mesh(self, model_data, result_type=None, subcase_id=None, component=None):
         """
         Plot mesh from ModelData with optional results visualization
@@ -249,6 +251,23 @@ class PyVistaMeshPlotter(QFrame):
                                                 cmap='jet', edge_color='black', line_width=1.5,
                                                 scalar_bar_args={"title": f"{result_type} ({scalar_label})"})
 
+                            '''
+                            custom_bar=self.plotter.add_scalar_bar(
+                                    title = f"{result_type} ({scalar_label})",
+                                    width=0.4,                    # 40% of window width
+                                    height=0.08,                  # 8% of window heightthinner
+                                    position_x=0.3,
+                                    position_y=0.05,
+                                    title_font_size=18,
+                                    label_font_size=18,
+                                    n_labels=4,
+                                    interactive=False,
+                                    unconstrained_font_size=True
+                                )
+                                # Adjust the gap between title and labels (vertical bar only)
+                            custom_bar.GetTitleTextProperty().SetLineSpacing(1.5)
+                            '''
+
                         else:
                             # Element results require a bit more work
                             # We need to map element ids to cell ids in the mesh
@@ -345,6 +364,7 @@ class PyVistaMeshPlotter(QFrame):
                     self.plotter.add_mesh(line_mesh, scalars=scalar_label, show_edges=True,
                                         cmap='jet', edge_color='black', line_width=2.5,
                                         scalar_bar_args={"title": f"{result_type} ({scalar_label})"})
+     
             else:
                 # No results specified, add mesh with default appearance
                 self.plotter.add_mesh(line_mesh, show_edges=True, color=[0.8, 0.8, 0.8], 
@@ -357,10 +377,10 @@ class PyVistaMeshPlotter(QFrame):
                                 point_size=10, color='red')
             print("No elements found, displaying points only")
 
-
         self.plotter.reset_camera()
         self.plotter.update()
         self.has_rendered = True
+        
         print("Rendering complete")
     
     def reset_view(self):
