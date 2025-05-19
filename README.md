@@ -8,7 +8,7 @@ By doing the above we are tryin to build something we would use (I guess).
 
 --------------------------------------------------------
 
-![image](https://github.com/user-attachments/assets/da863d83-da1e-4fd8-85e3-104e788e6eac)
+![image](https://github.com/user-attachments/assets/2066f7f9-67f5-4a7f-9988-5c9e96a35993)
 
 TODO: 
 
