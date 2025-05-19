@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 from pyNastran.bdf.bdf import BDF
 from pyNastran.op2.op2 import OP2
+import random
 import numpy as np
 import os
 
@@ -15,15 +16,21 @@ class ModelData:
             'CBEAM': []
         }
         self.element_ids = {}  # Dictionary to store element IDs by type
+        self.attributes = {
+        }
         self.results = {
             'DISPLACEMENT': {},
             'STRESS': {},
             'STRAIN': {},
-            'FORCE': {},       # For CQUAD4 and CTRIA3 forces
+            'FORCE_SHELL': {}, # For CQUAD4 and CTRIA3 forces
             'FORCE_BAR': {},   # For CBAR forces
-            'EIGENVECTORS': {}
+            'EIGENVECTORS': {},
+            'THICKNESS':{},
+            'ÖMER JOINTS':{},
+            'BURAK BUFFETS':{},
         }
         self.coordinate_systems = {}
+        self.bdf = None
         self.is_loaded = None
         self.op2_data = None  # Store the OP2 object for direct access if needed
     
@@ -45,11 +52,51 @@ class ModelData:
         dict
             Dictionary with IDs (element or node) as keys and result values as values
         """
+        result_data={}
+        # Handle thickness as a special case - it doesn't come from OP2 results
+        if result_type == 'THICKNESS':
+            if self.bdf and self.bdf.elements:
+                for elid, element in self.bdf.elements.items():
+                    try:
+                        prop = self.bdf.properties[element.pid]
+                        if prop.type == "PSHELL":
+                            thickness = prop.t
+                        elif prop.type == "PCOMP":
+                            thickness = prop.thicknesses[0]
+                        else:
+                            thickness = 0
+                        result_data[elid] = thickness
+                    except (KeyError, AttributeError, IndexError) as e:
+                        print(f"Warning: Could not get thickness for element {elid}: {e}")
+                        result_data[elid] = 0
+            return result_data
+        
+
+        if "ömer" in result_type.lower():
+            if self.bdf and self.bdf.elements:
+                for elid, element in self.bdf.elements.items():
+                    try:
+                        thickness=random.randint(0,10)
+                        result_data[elid] = elid**2
+                    except (KeyError, AttributeError, IndexError) as e:
+                        print(f"Warning: Could not get thickness for element {elid}: {e}")
+                        result_data[elid] = 0
+            return result_data
+        
+        if "burak" in result_type.lower():
+            if self.bdf and self.bdf.elements:
+                for elid, element in self.bdf.elements.items():
+                    try:
+                        thickness=random.randint(0,10)
+                        result_data[elid] = elid**1.2
+                    except (KeyError, AttributeError, IndexError) as e:
+                        print(f"Warning: Could not get thickness for element {elid}: {e}")
+                        result_data[elid] = 0
+            return result_data
+        
         # Check if the requested result exists
         if result_type not in self.results or subcase_id not in self.results[result_type]:
             return {}
-        
-        result_data = {}
         
         # Get the result objects for this type and subcase
         result_objects = self.results[result_type].get(subcase_id, [])
@@ -63,7 +110,7 @@ class ModelData:
                 # Extract data based on result type
                 if result_type == 'DISPLACEMENT' or result_type == 'EIGENVECTORS':
                     # Get the ID column name (could be NodeID, node_id, or GridID)
-                    df.drop("Type",axis=1,inplace=True) #Type sonucunu cikariyorum
+                    df.drop("Type", axis=1, inplace=True)  # Type sonucunu cikariyorum
                     id_col = next((col for col in df.columns if 'id' in col.lower() and ('node' in col.lower() or 'grid' in col.lower())), None)
                     
                     if id_col:
@@ -73,13 +120,14 @@ class ModelData:
                                 result_data[int(row[id_col])] = row[component]
                         else:
                             # Calculate displacement magnitude from T1, T2, T3
-                            t_comps = [c for c in df.columns if c in ["t1","t2","t3"]]
+                            t_comps = [c for c in df.columns if c in ["t1", "t2", "t3"]]
+
                             if t_comps:
                                 for _, row in df.iterrows():
                                     magnitude = np.sqrt(sum(row[c]**2 for c in t_comps))
                                     result_data[int(row[id_col])] = magnitude
                 
-                elif result_type == 'FORCE':
+                elif result_type == 'FORCE_SHELL':
                     # Get the element ID column
                     id_col = next((col for col in df.columns if 'id' in col.lower() and ('elem' in col.lower() or col.upper() == 'EID')), None)
                     
@@ -105,7 +153,7 @@ class ModelData:
                                 for _, row in df.iterrows():
                                     magnitude = np.sqrt(sum(row[c]**2 for c in comps_to_use))
                                     result_data[int(row[id_col])] = magnitude
-                            elif len(df.columns) > id_col:  # Just use the first numeric column that's not the ID
+                            elif len(df.columns) > 1:  # Just use the first numeric column that's not the ID
                                 # Find first numeric data column
                                 data_cols = [c for c in df.columns if c != id_col and not c.endswith('ID')]
                                 if data_cols:
@@ -116,13 +164,11 @@ class ModelData:
                     # Get the element ID column
                     id_col = next((col for col in df.columns if 'id' in col.lower() and ('elem' in col.lower() or col.upper() == 'EID')), None)
                     
-                    #id_col: element id, row[component]: mag - ymn
                     if id_col:
                         if component and component in df.columns:
                             # Get specific component
                             for _, row in df.iterrows():
                                 result_data[int(row[id_col])] = row[component] 
-                        
 
                 elif result_type == 'STRESS' or result_type == 'STRAIN':
                     # Get the element ID column
@@ -141,13 +187,13 @@ class ModelData:
                             # Use max principal as alternative
                             for _, row in df.iterrows():
                                 result_data[int(row[id_col])] = row['max_principal']
-                        elif len(df.columns) > id_col:
+                        elif len(df.columns) > 1:
                             # Just use the first numeric column that's not the ID
                             data_cols = [c for c in df.columns if c != id_col and not c.endswith('ID')]
                             if data_cols:
                                 for _, row in df.iterrows():
                                     result_data[int(row[id_col])] = row[data_cols[0]]
-            
+
             # Handle non-dataframe formats (legacy or specialized formats)
             else:
                 # Try to get available components for this result
@@ -187,7 +233,7 @@ class ModelData:
                                 result_data[int(eid)] = values[0]
                         elif isinstance(values, (int, float)):
                             result_data[int(eid)] = values
-                            
+
         return result_data
 
 
@@ -264,7 +310,7 @@ class ModelData:
         
         return mesh_data
     
-
+#OP2'DAN DATAYI CEKTIGIMIZ YER...
 def extract_op2_results(model_data, model_results):
     """
     Simplified function to extract results from an OP2 object into the ModelData structure
@@ -305,9 +351,9 @@ def extract_op2_results(model_data, model_results):
             force_data = getattr(model_results, force_attr)
             if isinstance(force_data, dict):
                 for subcase_id, force_obj in force_data.items():
-                    if subcase_id not in model_data.results["FORCE"]:
-                        model_data.results["FORCE"][subcase_id] = []
-                    model_data.results["FORCE"][subcase_id].append(force_obj)
+                    if subcase_id not in model_data.results["FORCE_SHELL"]:
+                        model_data.results["FORCE_SHELL"][subcase_id] = []
+                    model_data.results["FORCE_SHELL"][subcase_id].append(force_obj)
                     print(f"Loaded {force_attr} results for subcase {subcase_id}")
     
     # Extract bar forces (CBAR)
@@ -324,6 +370,22 @@ def extract_op2_results(model_data, model_results):
             model_data.results["EIGENVECTORS"][subcase_id] = [eigenvector]
             print(f"Loaded eigenvector results for subcase {subcase_id}")
     
+    # Extract thickness results
+    if model_data.bdf:
+        model_data.results.setdefault("THICKNESS", {})[" "] = []
+        print(f"Thickness is stored !")
+
+    # Extract thickness results
+    if model_data.bdf:
+        model_data.results.setdefault("BURAK BUFFETS", {})[" "] = []
+
+    # Extract thickness results  
+    if model_data.bdf:
+        model_data.results.setdefault("ÖMER JOİNTS", {})[" "] = []
+
+    else:
+        print("(WARNING) Thickness data is missing.")
+
     return model_data
     
 
@@ -348,6 +410,7 @@ def validate_and_load(bdf_file, op2_file=None):
         
         # Extract nodes
         model_data.nodes = model.nodes
+        model_data.bdf = model
         print(f"Loaded {len(model_data.nodes)} nodes")
         
         # Extract element IDs by type for easier reference
@@ -377,6 +440,10 @@ def validate_and_load(bdf_file, op2_file=None):
                                 model_data.properties[typ][pid][attr_name] = attr_value
                         except:
                             pass
+                        
+        # thickness extraction -ymn
+        for eid, element in model.elements.items():
+            model_data.attributes.setdefault
 
         # Store coordinate systems if available
         if hasattr(model, 'coords'):
@@ -386,7 +453,7 @@ def validate_and_load(bdf_file, op2_file=None):
         for elem_type in model_data.elements:
             print(f"Loaded {len(model_data.elements[elem_type])} {elem_type} elements")
         
-        model_data.is_loaded = "only_bdf"
+        model_data.is_loaded = "only bdf"
         text = "BDF file loaded successfully"
 
     except Exception as e:

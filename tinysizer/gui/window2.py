@@ -334,6 +334,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(mesh_tab, QIcon("tinysizer/gui/pics/export.png"), "Export")
 
 
+
     #########################################
     # T R E E
     #########################################
@@ -458,19 +459,28 @@ class MainWindow(QMainWindow):
 
     def populate_result_controls(self, model_data):
         """Populate UI controls for result selection (if they exist)"""
-        # Check if the necessary UI components exist
-        if hasattr(self, 'result_type_combo') and hasattr(self, 'subcase_combo') and hasattr(self, 'component_combo'):
+        # Check if the necessary UI components exist and if op2_data exists
+        if (hasattr(self, 'result_type_combo') and hasattr(self, 'subcase_combo') and 
+            hasattr(self, 'component_combo') and model_data.op2_data is not None):
+            
             # Clear existing items
             self.result_type_combo.clear()
             self.subcase_combo.clear()
             self.component_combo.clear()
             
-            # Add available result types
+            # Add available result types from op2_data
             available_result_types = []
-            for result_type in model_data.results:
-                if model_data.results[result_type]:  # Only add types that have data
-                    available_result_types.append(result_type)
-                    
+            
+            # Check for different result types in the OP2 file
+            if hasattr(model_data.op2_data, 'displacements') and model_data.op2_data.displacements:
+                available_result_types.append('DISPLACEMENT')
+            if hasattr(model_data.op2_data, 'cquad4_stress') and model_data.op2_data.cquad4_stress:
+                available_result_types.append('STRESS')
+            if hasattr(model_data.op2_data, 'cquad4_strain') and model_data.op2_data.cquad4_strain:
+                available_result_types.append('STRAIN')
+            if hasattr(model_data.op2_data, 'cquad4_force') and model_data.op2_data.cquad4_force:
+                available_result_types.append('FORCE')
+                
             self.result_type_combo.addItems(available_result_types)
             
             # Connect signals for updating dependent controls
@@ -496,9 +506,8 @@ class MainWindow(QMainWindow):
             return
         
         try:
-            try: subcase_id = int(subcase_text)
-            except:  subcase_id = subcase_text #thickness icin -ymn
-
+            subcase_id = int(subcase_text)
+            
             # Handle "Magnitude" special case
             if component == "Magnitude":
                 component = None
@@ -517,7 +526,7 @@ class MainWindow(QMainWindow):
     
     def update_subcase_combo(self, model_data):
         """Update subcase combo based on selected result type"""
-        if not hasattr(self, 'subcase_combo'):
+        if not hasattr(self, 'subcase_combo') or model_data.op2_data is None:
             return
             
         self.subcase_combo.clear()
@@ -525,9 +534,20 @@ class MainWindow(QMainWindow):
         result_type = self.result_type_combo.currentText()
         if not result_type:
             return
+        
+        # Get subcases based on result type
+        subcases = []
+        
+        if result_type == 'DISPLACEMENT' and hasattr(model_data.op2_data, 'displacements'):
+            subcases = list(model_data.op2_data.displacements.keys())
+        elif result_type == 'STRESS' and hasattr(model_data.op2_data, 'cquad4_stress'):
+            subcases = list(model_data.op2_data.cquad4_stress.keys())
+        elif result_type == 'STRAIN' and hasattr(model_data.op2_data, 'cquad4_strain'):
+            subcases = list(model_data.op2_data.cquad4_strain.keys())
+        elif result_type == 'FORCE' and hasattr(model_data.op2_data, 'cquad4_force'):
+            subcases = list(model_data.op2_data.cquad4_force.keys())
             
-        subcases = model_data.get_available_subcases(result_type)
-        self.subcase_combo.addItems([str(sc) for sc in subcases]) #subcaseleri liste halinde ekrana getiriyor
+        self.subcase_combo.addItems([str(sc) for sc in sorted(subcases)])
         
         # Update components as well
         if subcases:
@@ -535,7 +555,7 @@ class MainWindow(QMainWindow):
 
     def update_component_combo(self, model_data):
         """Update component combo based on selected result type and subcase"""
-        if not hasattr(self, 'component_combo'):
+        if (not hasattr(self, 'component_combo') or model_data.op2_data is None):
             return
             
         self.component_combo.clear()
@@ -548,15 +568,23 @@ class MainWindow(QMainWindow):
         
         try:
             subcase_id = int(subcase_text)
-            components = model_data.get_available_components(result_type, subcase_id)
+            components = []
             
-            # Add "Magnitude" option for displacement
+            # Get available components based on result type
             if result_type == "DISPLACEMENT":
-                self.component_combo.addItem("Magnitude")
+                components = ["Magnitude", "T1", "T2", "T3", "R1", "R2", "R3"]
+            elif result_type == "STRESS":
+                # For quad stress, common components are
+                components = ["von_mises", "oxx", "oyy", "txy", "angle", "omax", "omin"]
+            elif result_type == "STRAIN":
+                components = ["von_mises", "exx", "eyy", "exy", "angle", "emax", "emin"]
+            elif result_type == "FORCE":
+                components = ["mx", "my", "mxy", "bmx", "bmy", "bmxy", "tx", "ty"]
                 
             self.component_combo.addItems(components)
         except ValueError:
             pass
+
 
 
     #########################################
@@ -602,7 +630,7 @@ class MainWindow(QMainWindow):
                     print("VTK plotter not available")
                     return
                     
-                if not hasattr(self.bdf_data, 'is_loaded') or not self.bdf_data.is_loaded:
+                if not hasattr(self, 'model_data') or self.model_data is None or not self.model_data.is_loaded:
                     print("No model data loaded")
                     return
 
