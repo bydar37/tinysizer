@@ -31,9 +31,10 @@ class ModelData:
         }
         self.coordinate_systems = {}
         self.bdf = None
+        self.op2= None
         self.is_loaded = None
-        self.op2_data = None  # Store the OP2 object for direct access if needed
-    
+
+            
     def get_result_data(self, result_type, subcase_id, component=None):
         """
         Simplified method to extract result values for visualization
@@ -469,7 +470,7 @@ def validate_and_load(bdf_file, op2_file=None):
             model_results.read_op2(op2_file, build_dataframe=True)
             
             # Store the OP2 model for direct access if needed
-            model_data.op2_data = model_results
+            model_data.op2 = model_results
             
             # Extract results using the simplified function
             model_data = extract_op2_results(model_data, model_results)
