@@ -65,9 +65,12 @@ class PyVistaMeshPlotter(QFrame):
         self.plotter.clear()
         self.add_axes()
         
-        # Create points array
+
+        ####################################################################
+        ########## DOING POINTS !!! -> later pv.PolyData(points,faces)
+        ####################################################################
         points = []
-        node_id_to_idx = {}
+        node_id_to_idx = {} #-> {101:1, 102:2, 103:3 .... node_id : index}
         idx = 0
         
         # Process nodes
@@ -95,7 +98,10 @@ class PyVistaMeshPlotter(QFrame):
         points = np.array(points)
         print(f"Successfully processed {len(points)} nodes")
         
-        # Create mesh objects for different element types
+
+        ####################################################################
+        ########## DOING FACES !!! -> later pv.PolyData(points,faces)
+        ####################################################################
         quad_faces = []
         tri_faces = []
         bar_lines = []
@@ -106,12 +112,6 @@ class PyVistaMeshPlotter(QFrame):
                 # Our enhanced structure uses tuples: (typ, pid, eid, node_ids)
                 if isinstance(elem_data, tuple) and len(elem_data) >= 4:
                     _, _, eid, node_ids = elem_data
-                elif hasattr(elem_data, 'node_ids'):  # pyNastran element object
-                    eid = elem_data.eid
-                    node_ids = elem_data.node_ids
-                elif isinstance(elem_data, dict):  # Dictionary representation
-                    eid = elem_data.get('eid')
-                    node_ids = elem_data.get('nodes')
                 else:
                     print(f"Unsupported quad element format: {type(elem_data)}")
                     continue
@@ -141,12 +141,6 @@ class PyVistaMeshPlotter(QFrame):
                 # Our enhanced structure uses tuples: (typ, pid, eid, node_ids)
                 if isinstance(elem_data, tuple) and len(elem_data) >= 4:
                     _, _, eid, node_ids = elem_data
-                elif hasattr(elem_data, 'node_ids'):
-                    eid = elem_data.eid
-                    node_ids = elem_data.node_ids
-                elif isinstance(elem_data, dict):
-                    eid = elem_data.get('eid')
-                    node_ids = elem_data.get('nodes')
                 else:
                     print(f"Unsupported triangle element format: {type(elem_data)}")
                     continue
@@ -166,9 +160,6 @@ class PyVistaMeshPlotter(QFrame):
                     # Format for PyVista: [3, idx0, idx1, idx2]
                     tri_faces.append([3] + face_indices)
                     
-                if len(tri_faces) % 1000 == 0 and len(tri_faces) > 0:
-                    print(f"Processed {len(tri_faces)} triangle elements...")
-                    
             except Exception as e:
                 print(f"Error processing triangle element: {str(e)}")
         
@@ -179,12 +170,6 @@ class PyVistaMeshPlotter(QFrame):
                 # Our enhanced structure uses tuples: (typ, pid, eid, node_ids)
                 if isinstance(elem_data, tuple) and len(elem_data) >= 4:
                     _, _, eid, node_ids = elem_data
-                elif hasattr(elem_data, 'node_ids'):
-                    eid = elem_data.eid
-                    node_ids = elem_data.node_ids
-                elif isinstance(elem_data, dict):
-                    eid = elem_data.get('eid')
-                    node_ids = elem_data.get('nodes')
                 else:
                     continue
                 
@@ -200,6 +185,7 @@ class PyVistaMeshPlotter(QFrame):
                         break
                 
                 if valid_element:
+                    # Format for PyVista: [2, idx0, idx1]
                     bar_lines.append([2] + line_indices)
                     
             except Exception as e:
@@ -207,8 +193,11 @@ class PyVistaMeshPlotter(QFrame):
 
 
         print(f"Successfully processed {len(quad_faces)} quads & {len(tri_faces)} triangles & {len(bar_lines)} bars.")
-        
-        # Create and display meshes
+
+
+        ####################################################################
+        ########## PLOTTING !!! -> pv.PolyData(points,faces)
+        ####################################################################
         if quad_faces or tri_faces:
             # Combine all faces for a single mesh
             faces = quad_faces + tri_faces

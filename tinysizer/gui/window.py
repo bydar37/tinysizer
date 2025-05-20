@@ -1,12 +1,15 @@
 
+import os
+import numpy as np
 from tinysizer.file import file_loader  # Import the file loader module
 from tinysizer.visualization.plotter_vista import PyVistaMeshPlotter
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QPixmap, QPainter, QIcon
+from PySide6.QtGui import QPixmap, QPainter, QIcon, QAction
 from PySide6.QtWidgets import (QMainWindow, QApplication, QDockWidget, QComboBox, QTableWidget,
                               QTreeView, QTabWidget, QMenuBar, QStatusBar, QTreeWidget, QTableWidgetItem,
-                              QWidget, QVBoxLayout, QPushButton, QLabel, QTreeWidgetItem,
-                              QDialog, QFileDialog, QHBoxLayout, QLineEdit, QMessageBox, QSizePolicy)
+                              QWidget, QVBoxLayout, QPushButton, QLabel, QTreeWidgetItem, QToolBar,
+                              QDialog, QFileDialog, QHBoxLayout, QLineEdit, QMessageBox, QSizePolicy,
+                              QColorDialog,QMenu,QFrame)
 
 
 class MainWindow(QMainWindow):
@@ -60,6 +63,9 @@ class MainWindow(QMainWindow):
         self.error_label.setStyleSheet("color: red")
         self.error_label.hide()
         
+        # make the menu bar
+        self.create_menu_bar()
+
         # Left side - placeholder image (matching tree view dimensions)
         PIC_WIDTH=310
         image_label = QLabel()
@@ -215,7 +221,146 @@ class MainWindow(QMainWindow):
         
         self.tabs.addTab(main_tab, QIcon("tinysizer/gui/pics/home.png"), "Home")
 
+    def create_menu_bar(self):
+        menu_bar=self.menuBar()
+
+        # File Menu
+        file_menu = menu_bar.addMenu("File")
+        open_action = QAction("Open BDF", self)
+        #open_action.triggered.connect(self.load_bdf_file)
+        file_menu.addAction(open_action)
+
+        exit_action = QAction("Exit", self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+
+        # View Menu
+        view_menu = menu_bar.addMenu("View")
+        reset_view_action = QAction("Reset View", self)
+        reset_view_action.triggered.connect(lambda: self.pyv_plotter.plotter.reset_camera())
+        view_menu.addAction(reset_view_action)
+
+        # Help Menu
+        help_menu = menu_bar.addMenu("Help")
+        shortcuts_action = QAction("Shortcuts", self)
+        shortcuts_action.triggered.connect(self.show_shortcuts)
+        help_menu.addAction(shortcuts_action)
+        
+        # Help Menu
+        about_menu = menu_bar.addMenu("About")
+        contact_action = QAction("Contact", self)
+        #about_menu.triggered.connect(self.show_shortcuts)
+        about_menu.addAction(contact_action)
+
+
     def create_geometry_tab(self):
+        """Create geometry tab with VTK viewer"""
+        geo_tab = QWidget()
+        geo_tab.setMinimumSize(WINDOW_WIDTH * 0.5, WINDOW_HEIGHT * 0.5)
+        layout = QVBoxLayout(geo_tab)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+
+        # Results controls
+        self.result_type_combo = QComboBox()
+        self.subcase_combo = QComboBox()
+        self.component_combo = QComboBox()
+        self.display_result_button = QPushButton("Display Result")
+        self.display_result_button.clicked.connect(self.display_result)
+        self.display_result_button.setObjectName("displayResultButton")  # for styling
+
+        # VTK plotter setup
+        self.pyv_plotter = PyVistaMeshPlotter()
+        self.pyv_plotter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.pyv_plotter.setMinimumHeight(400)
+        layout.addWidget(self.pyv_plotter, 1)
+
+        # Buttons info for both rows
+        buttons_info = [
+            ("Refresh", "tinysizer/gui/pics/refresh.png", self.refresh_geometry_view),
+            ("Surface", "tinysizer/gui/pics/surface.png", lambda: self.set_display_mode("surface")),
+            ("Wireframe", "tinysizer/gui/pics/wireframe.png", lambda: self.set_display_mode("wireframe")),
+            ("Edges", "tinysizer/gui/pics/edges.png", lambda: self.set_display_mode("edges")),
+            ("Opacity", "tinysizer/gui/pics/opacity.png", lambda: self.set_display_mode("opacity")),
+            ("Shortcuts", "tinysizer/gui/pics/shortcuts2.png", lambda: self.show_shortcuts())
+        ]
+
+        # === TOP ROW (small buttons) ===
+        top_controls = QHBoxLayout()
+        #top_controls.setContentsMargins(10 + self.display_result_button.sizeHint().width(), 0, 0, 0)
+        top_controls.setContentsMargins(10,2,10,2)
+        top_controls.setSpacing(0)
+
+        # Create a QWidget container for top_controls to set the objectName
+        top_controls_widget = QWidget()
+        top_controls_widget.setObjectName("topControlsLayout")
+        top_controls_widget.setLayout(top_controls)
+
+        n=[4,5,6]
+        # Split buttons into 3 groups of 6
+        import random
+        for group_idx in range(5):
+            for i in range(random.choice(n)):
+                text, icon_path, callback = buttons_info[i]
+                btn = QPushButton()
+                btn.setIcon(QIcon(icon_path))
+                btn.setToolTip(text)
+                btn.setFixedSize(24, 24)
+                btn.clicked.connect(callback)
+                top_controls.addWidget(btn)
+            
+            # Add some spacing between groups except after last group
+            if group_idx < 3:
+                top_controls.addSpacing(50)  # Adjust spacing as you want
+
+        top_controls.addStretch(1)
+        layout.addWidget(top_controls_widget)
+
+        #---SEPERATOR
+        separator = QFrame()
+        separator.setObjectName("fadeSeparator")
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFixedHeight(1)  # Set to 1–3 px for best results
+        separator.setContentsMargins(0, 5, 0, 0)  # Left, Top, Right, Bottom
+        layout.addWidget(separator)
+
+        # === BOTTOM ROW (original bigger buttons + combos) ===
+        controls = QHBoxLayout()
+
+        left_controls = QHBoxLayout()
+        left_controls.addWidget(self.display_result_button)
+        left_controls.addWidget(QLabel("Result Type:"))
+        left_controls.addWidget(self.result_type_combo)
+        left_controls.addWidget(QLabel("Subcase:"))
+        left_controls.addWidget(self.subcase_combo)
+        left_controls.addWidget(QLabel("Component:"))
+        left_controls.addWidget(self.component_combo)
+
+        controls.addLayout(left_controls)
+        controls.addStretch(1)  # Center spacing
+
+        # Add bigger icon buttons in bottom row
+        for text, icon_path, callback in buttons_info:
+            btn = QPushButton()
+            btn.setIcon(QIcon(icon_path))
+            btn.setToolTip(text)
+            btn.setFixedSize(32, 32)  # original size on bottom row
+            btn.clicked.connect(callback)
+            controls.addWidget(btn)
+
+        controls.addStretch(0)
+        controls.setContentsMargins(10, 5, 10, 10)  # Eliminate padding around layout
+        controls.setSpacing(5)  # Or 0 if you want zero spacing between buttons
+        controls_widget = QWidget()
+        controls_widget.setLayout(controls)
+        controls_widget.setMaximumHeight(50)
+
+        layout.addWidget(controls_widget)
+
+        self.tabs.addTab(geo_tab, QIcon("tinysizer/gui/pics/tab_aircraft2.png"), "Geometry")
+        return geo_tab
+
+    def create_geometry_tab_old(self):
         """Create geometry tab with VTK viewer"""
         geo_tab = QWidget()
         geo_tab.setMinimumSize(WINDOW_WIDTH*0.5, WINDOW_HEIGHT*0.5)
@@ -238,7 +383,6 @@ class MainWindow(QMainWindow):
         self.pyv_plotter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.pyv_plotter.setMinimumHeight(400)  # Set a minimum height
         layout.addWidget(self.pyv_plotter, 1)  # The 1 gives this widget a stretch factor
-
 
         # having this portion at the instead of meshplotter
         controls = QHBoxLayout()
@@ -319,6 +463,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(sizing_tab)
         layout.addWidget(QLabel("Sizing Settings"))
         self.tabs.addTab(sizing_tab, QIcon("tinysizer/gui/pics/sizing.png"), "Sizing")
+        sizing_tab.setContentsMargins(0, 0, 0, 0)  # Remove margins around main layout
 
     def create_utils_tab(self):
         """Creates the results visualization tab"""
@@ -350,31 +495,106 @@ class MainWindow(QMainWindow):
         )
         
         tree = QTreeWidget()
-        tree.setHeaderLabel("Structure name")
         tree.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         tree.setMinimumWidth(250)
+        tree.setHeaderHidden(True)
+
+        #CONTEXT MENU-------------------
+        tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        tree.customContextMenuRequested.connect(self.show_tree_context_menu)
+    
+        # Also handle regular clicks
+        tree.itemClicked.connect(self.on_tree_item_clicked)
+
+
+        #TREE ITEMS---------------------
+        properties = QTreeWidgetItem(["Properties"])
+        #properties.addChild(QTreeWidgetItem(["Parts"]))
         
-        # Add some example items
-        geometry = QTreeWidgetItem(["Geometry"])
-        geometry.addChild(QTreeWidgetItem(["Parts"]))
-        geometry.addChild(QTreeWidgetItem(["Assemblies"]))
+        others = QTreeWidgetItem(["Others"])
+        others.addChild(QTreeWidgetItem(["Elements"]))
+        others.addChild(QTreeWidgetItem(["Nodes"]))
         
-        mesh = QTreeWidgetItem(["Mesh"])
-        mesh.addChild(QTreeWidgetItem(["Elements"]))
-        mesh.addChild(QTreeWidgetItem(["Nodes"]))
-        
-        loads = QTreeWidgetItem(["Loads & BCs"])
-        loads.addChild(QTreeWidgetItem(["Forces"]))
-        loads.addChild(QTreeWidgetItem(["Constraints"]))
-        
-        tree.addTopLevelItems([geometry, mesh, loads])
+        tree.addTopLevelItems([properties,others])
         tree.expandAll()
-        
+
+        # Store the tree and properties item as instance variables
+        self.tree_widget = tree
+        self.properties_item = properties  # Store the properties item for later use
+        #TREE ITEMS---------------------
+
         dock.setWidget(tree)
         self.addDockWidget(Qt.LeftDockWidgetArea, dock)
         
         return dock
     
+    def populate_tree(self, model_data):
+        """Populates the tree with model data"""
+        # Now use self.properties_item instead of the local 'properties' variable
+        for property_type,property_ids in model_data.properties.items():
+            type_item=QTreeWidgetItem([property_type])
+            self.properties_item.addChild(type_item)
+            for pid in property_ids:
+                print(pid)
+                pid_item = QTreeWidgetItem([str(pid)])
+                type_item.addChild(pid_item)
+
+                # Store property ID as item data for use in the click handler
+                pid_item.setData(0, Qt.UserRole, pid)
+
+
+    def show_tree_context_menu(self, position):
+        """Show context menu for tree items"""
+        # Get the item at the clicked position
+        item = self.tree_widget.itemAt(position)
+        if not item:
+            return
+        
+        # Get property ID if available
+        property_id = item.data(0, Qt.UserRole)
+        if not property_id:
+            return  # No property ID stored in this item
+        
+        # Create context menu
+        context_menu = QMenu()
+        
+        # Add actions
+        isolate_action = context_menu.addAction("Isolate Elements")
+        mask_action = context_menu.addAction("Mask Elements")
+        color_action = context_menu.addAction("Color Elements")
+        reset_action = context_menu.addAction("Reset View")
+        
+        # Show the menu and get the selected action
+        action = context_menu.exec_(self.tree_widget.mapToGlobal(position))
+        
+        # Handle the selected action
+        if action == isolate_action:
+            self.isolate_elements_by_property(property_id)
+        elif action == mask_action:
+            self.mask_elements_by_property(property_id)
+        elif action == color_action:
+            # Show color dialog
+            color = QColorDialog.getColor()
+            if color.isValid():
+                self.color_elements_by_property(property_id, color)
+        elif action == reset_action:
+            self.pyv_plotter.reset_view()
+
+    #BURASI HARD, SONRA YAPILABİLİR -ymn
+    def isolate_elements_by_property(self, property_id):
+        return None
+
+    def mask_elements_by_property(self, property_id):
+        return None
+
+    def color_elements_by_property(self, property_id, color):
+        """Color elements with the specified property ID"""
+        return None
+
+    def on_tree_item_clicked(self, item):
+        """Handle clicks on tree items"""
+        return None
+
 
     #########################################
     # R E A D  &  P L O T
@@ -395,7 +615,8 @@ class MainWindow(QMainWindow):
             # Update geometry view with loaded data
             # Note: We now pass the entire model_data object
             self.pyv_plotter.plot_mesh(model_data)
-
+            self.populate_tree(model_data)
+            
             # Enable tabs and switch to geometry
             for i in range(self.tabs.count()):
                 self.tabs.setTabEnabled(i, True)
