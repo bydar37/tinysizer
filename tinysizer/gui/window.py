@@ -465,7 +465,9 @@ class MainWindow(QMainWindow):
             type_item = QTreeWidgetItem([property_type])
             self.properties_item.addChild(type_item)
 
-            for pid in property_ids:
+            property_ids_list=list(property_ids)
+            property_ids_list.sort()
+            for pid in property_ids_list:
                 pid_item = QTreeWidgetItem([str(pid)])
                 type_item.addChild(pid_item)
 
@@ -498,8 +500,8 @@ class MainWindow(QMainWindow):
         color_action = context_menu.addAction("Color Elements")
         color_action.triggered.connect(lambda: self.handle_color_action(property_id))
         
-        reset_action = context_menu.addAction("Reset View")
-        reset_action.triggered.connect(self.pyv_plotter.reset_view)
+        #reset_action = context_menu.addAction("Reset View")
+        #reset_action.triggered.connect(self.pyv_plotter.reset_view)
         
         create_assembly_action = context_menu.addAction("Create Assembly")
         create_assembly_action.triggered.connect(self.create_assembly)
@@ -548,7 +550,9 @@ class MainWindow(QMainWindow):
         # Add to your properties tree under "Assembly" category
         self.add_assembly_to_tree(assembly_name, property_ids)
         
-        print(f"Created assembly '{assembly_name}' with {len(property_ids)} properties")
+        text=f"Created assembly '{assembly_name}' with {len(property_ids)} properties"
+        QMessageBox.information(self, "Success", text, QMessageBox.Ok)
+        print(text)
         
     def add_assembly_to_tree(self, assembly_name, property_ids):
         """Add the new assembly to your properties tree"""
