@@ -3,8 +3,10 @@ import os
 import numpy as np
 from tinysizer.file import file_loader  # Import the file loader module
 from tinysizer.visualization.plotter_vista import PyVistaMeshPlotter
+from tinysizer.gui.sizing_tab import SizingTab
+from tinysizer.gui.assembly import AssemblyDialog  
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QPixmap, QPainter, QIcon, QAction
+from PySide6.QtGui import QPixmap, QPainter, QIcon, QAction, QFont
 from PySide6.QtWidgets import (QMainWindow, QApplication, QDockWidget, QComboBox, QTableWidget,
                               QTreeView, QTabWidget, QMenuBar, QStatusBar, QTreeWidget, QTableWidgetItem,
                               QWidget, QVBoxLayout, QPushButton, QLabel, QTreeWidgetItem, QToolBar,
@@ -19,11 +21,14 @@ class MainWindow(QMainWindow):
         WINDOW_HEIGHT,WINDOW_WIDTH=600,1200
         self.setWindowTitle("TinySizer")
         self.resize(WINDOW_WIDTH, WINDOW_HEIGHT) #width, height
-        self.center_on_screen() # helper function, merkezliyor pencereyi, DOES NOT WORK
-
+        self.center_on_screen() # helper function, merkezliyor pencereyi -ymn
+        self.model_data=None
+        self.assembly_properties=None
+        self.assemblies = {}  # Dictionary to store assemblies
+        
         #stylsheet
         load_stylesheet = lambda path: open(path, "r").read()
-        self.setStyleSheet(load_stylesheet("tinysizer/gui/styles/dark_theme.qss"))
+        self.setStyleSheet(load_stylesheet("tinysizer/gui/styles/dark_theme.qss")) 
         
         # Create central widget
         self.central_widget = QWidget()
@@ -37,13 +42,18 @@ class MainWindow(QMainWindow):
         # Create all tabs but only enable Main initially
         self.create_main_tab()
         self.create_geometry_tab()
-        self.create_sizing_tab()
-        self.create_utils_tab()
-        self.create_export_tab()
 
         # Create but hide model tree initially
         self.dock = self.create_model_tree()
         self.dock.hide()
+        
+        # Initialize sizing tab but don't add it yet
+        self.sizing_tab = SizingTab(parent=self)
+        self.add_and_update_sizing_tab()
+
+        self.create_utils_tab()
+        self.create_export_tab()
+        self.setup_tab_change_handler() #isme göre tree-dock getirmek icin, bu durumda sadece "geometry" icin geliyor -ymn
 
         # Disable all tabs except Main
         for i in range(1, self.tabs.count()):
@@ -54,6 +64,7 @@ class MainWindow(QMainWindow):
     # T A B S
     #########################################
     def create_main_tab(self):
+        #same code here
         main_tab = QWidget()
         main_layout = QHBoxLayout(main_tab)
         main_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins around main layout
@@ -221,7 +232,9 @@ class MainWindow(QMainWindow):
         
         self.tabs.addTab(main_tab, QIcon("tinysizer/gui/pics/home.png"), "Home")
 
+
     def create_menu_bar(self):
+        #same code here
         menu_bar=self.menuBar()
 
         # File Menu
@@ -252,8 +265,8 @@ class MainWindow(QMainWindow):
         #about_menu.triggered.connect(self.show_shortcuts)
         about_menu.addAction(contact_action)
 
-
     def create_geometry_tab(self):
+        #same code here
         """Create geometry tab with VTK viewer"""
         geo_tab = QWidget()
         geo_tab.setMinimumSize(WINDOW_WIDTH * 0.5, WINDOW_HEIGHT * 0.5)
@@ -282,7 +295,8 @@ class MainWindow(QMainWindow):
             ("Wireframe", "tinysizer/gui/pics/wireframe.png", lambda: self.set_display_mode("wireframe")),
             ("Edges", "tinysizer/gui/pics/edges.png", lambda: self.set_display_mode("edges")),
             ("Opacity", "tinysizer/gui/pics/opacity.png", lambda: self.set_display_mode("opacity")),
-            ("Shortcuts", "tinysizer/gui/pics/shortcuts2.png", lambda: self.show_shortcuts())
+            ("Shortcuts", "tinysizer/gui/pics/shortcuts2.png", lambda: self.show_shortcuts()),
+            ("Placeholder", "tinysizer/gui/pics/edges.png", lambda: None)
         ]
 
         # === TOP ROW (small buttons) ===
@@ -295,13 +309,20 @@ class MainWindow(QMainWindow):
         top_controls_widget = QWidget()
         top_controls_widget.setObjectName("topControlsLayout")
         top_controls_widget.setLayout(top_controls)
+        
+        colorize_btn = QPushButton()
+        colorize_btn.setIcon(QIcon("tinysizer/gui/pics/colorful.ico"))
+        colorize_btn.setToolTip("Colorize")
+        colorize_btn.setFixedSize(24, 24)
+        colorize_btn.clicked.connect(lambda: self.pyv_plotter.colorize_by_property(self.model_data))
+        top_controls.addWidget(colorize_btn)
 
-        n=[4,5,6]
+        n=[7]
         # Split buttons into 3 groups of 6
         import random
         for group_idx in range(5):
-            for i in range(random.choice(n)):
-                text, icon_path, callback = buttons_info[i]
+            for i in range(1,random.choice(n),1):
+                text, icon_path, callback = buttons_info[-1]
                 btn = QPushButton()
                 btn.setIcon(QIcon(icon_path))
                 btn.setToolTip(text)
@@ -310,7 +331,7 @@ class MainWindow(QMainWindow):
                 top_controls.addWidget(btn)
             
             # Add some spacing between groups except after last group
-            if group_idx < 3:
+            if group_idx < 4:
                 top_controls.addSpacing(50)  # Adjust spacing as you want
 
         top_controls.addStretch(1)
@@ -340,7 +361,7 @@ class MainWindow(QMainWindow):
         controls.addStretch(1)  # Center spacing
 
         # Add bigger icon buttons in bottom row
-        for text, icon_path, callback in buttons_info:
+        for text, icon_path, callback in buttons_info[:-1]:
             btn = QPushButton()
             btn.setIcon(QIcon(icon_path))
             btn.setToolTip(text)
@@ -360,103 +381,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(geo_tab, QIcon("tinysizer/gui/pics/tab_aircraft2.png"), "Geometry")
         return geo_tab
 
-    def create_geometry_tab_old(self):
-        """Create geometry tab with VTK viewer"""
-        geo_tab = QWidget()
-        geo_tab.setMinimumSize(WINDOW_WIDTH*0.5, WINDOW_HEIGHT*0.5)
-        layout = QVBoxLayout(geo_tab)
-        layout.setContentsMargins(0, 0, 0, 0)  # Reduce margins
-        layout.setSpacing(5)  # Compact spacing
-        
-        #results
-        # Add these to your UI setup
-        self.result_type_combo = QComboBox()
-        self.subcase_combo = QComboBox()
-        self.component_combo = QComboBox()
-        self.display_result_button = QPushButton("Display Result")
-        self.display_result_button.clicked.connect(self.display_result)
-        self.display_result_button.setObjectName("displayResultButton")  # for styling
-
-        # Add them to your layout
-        # Create VTK plotter with explicit size policy
-        self.pyv_plotter = PyVistaMeshPlotter()
-        self.pyv_plotter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.pyv_plotter.setMinimumHeight(400)  # Set a minimum height
-        layout.addWidget(self.pyv_plotter, 1)  # The 1 gives this widget a stretch factor
-
-        # having this portion at the instead of meshplotter
-        controls = QHBoxLayout()
-        
-        left_controls = QHBoxLayout()
-        left_controls.addWidget(self.display_result_button)
-        left_controls.addWidget(QLabel("Result Type:"))
-        left_controls.addWidget(self.result_type_combo)
-        left_controls.addWidget(QLabel("Subcase:"))
-        left_controls.addWidget(self.subcase_combo)
-        left_controls.addWidget(QLabel("Component:"))
-        left_controls.addWidget(self.component_combo)
-        
-        # Add left controls to main controls layout
-        controls.addLayout(left_controls)
-        controls.addStretch(1)  # Add stretch to center the buttons
-
-        # Add a button to trigger rendering (helpful for debugging)
-        refresh_btn = QPushButton()
-        refresh_btn.setIcon(QIcon("tinysizer/gui/pics/refresh.png"))
-        refresh_btn.setToolTip("Refresh View (R)")
-        refresh_btn.setFixedSize(32, 32)  # Set a fixed size for the button
-        refresh_btn.clicked.connect(self.refresh_geometry_view)
-        controls.addWidget(refresh_btn)
-        
-        # Add display options
-        surface_btn = QPushButton()
-        surface_btn.setIcon(QIcon("tinysizer/gui/pics/surface.png"))
-        surface_btn.setToolTip("Surface (S)")
-        surface_btn.setFixedSize(32, 32)
-        surface_btn.clicked.connect(lambda: self.set_display_mode("surface"))
-        controls.addWidget(surface_btn)
-
-        wireframe_btn = QPushButton()
-        wireframe_btn.setIcon(QIcon("tinysizer/gui/pics/wireframe.png"))
-        wireframe_btn.setToolTip("Wireframe (W)")
-        wireframe_btn.setFixedSize(32, 32)
-        wireframe_btn.clicked.connect(lambda: self.set_display_mode("wireframe"))
-        controls.addWidget(wireframe_btn)
-        
-        edges_btn = QPushButton()
-        edges_btn.setIcon(QIcon("tinysizer/gui/pics/edges.png"))
-        edges_btn.setToolTip("Edges")
-        edges_btn.setFixedSize(32, 32)
-        edges_btn.clicked.connect(lambda: self.set_display_mode("edges"))
-        controls.addWidget(edges_btn)
-
-        opacity_btn = QPushButton()
-        opacity_btn.setIcon(QIcon("tinysizer/gui/pics/opacity.png"))
-        opacity_btn.setToolTip("Opacity")
-        opacity_btn.setFixedSize(32, 32)
-        opacity_btn.clicked.connect(lambda: self.set_display_mode("opacity"))
-        controls.addWidget(opacity_btn)
-
-        shortcuts_btn = QPushButton()
-        shortcuts_btn.setIcon(QIcon("tinysizer/gui/pics/shortcuts2.png"))
-        shortcuts_btn.setToolTip("Shortcuts")
-        shortcuts_btn.setFixedSize(32, 32)
-        shortcuts_btn.clicked.connect(lambda: self.show_shortcuts())
-        controls.addWidget(shortcuts_btn)
-
-        controls.addStretch(0)  # Add stretch to center the buttons
-        
-        # Create a widget for the controls to overlay on the vtk_plotter
-        controls_widget = QWidget()
-        controls_widget.setLayout(controls)
-        controls_widget.setMaximumHeight(50)  # Limit the height of the controls
-        
-        # Add the controls at the bottom
-        layout.addWidget(controls_widget)
-
-        self.tabs.addTab(geo_tab, QIcon("tinysizer/gui/pics/tab_aircraft2.png"), "Geometry")
-        return geo_tab  # Return the tab for reference if needed
-
+    '''
     def create_sizing_tab(self):
         """Creates the analysis settings tab"""
         sizing_tab = QWidget()
@@ -464,18 +389,26 @@ class MainWindow(QMainWindow):
         layout.addWidget(QLabel("Sizing Settings"))
         self.tabs.addTab(sizing_tab, QIcon("tinysizer/gui/pics/sizing.png"), "Sizing")
         sizing_tab.setContentsMargins(0, 0, 0, 0)  # Remove margins around main layout
-
+    '''
     def create_utils_tab(self):
         """Creates the results visualization tab"""
         utils_tab = QWidget()
         layout = QVBoxLayout(utils_tab)
-        layout.addWidget(QLabel("Utilities Viewer"))
+
+        placeholder_label = QLabel("TBD")
+        placeholder_label.setAlignment(Qt.AlignCenter)
+        placeholder_label.setStyleSheet("font-size: 14pt; color: gray;")
+        layout.addWidget(placeholder_label)
         self.tabs.addTab(utils_tab, QIcon("tinysizer/gui/pics/utils.png"), "Utils")
 
     def create_export_tab(self):
         mesh_tab=QWidget()
         layout=QVBoxLayout(mesh_tab)
-        layout.addWidget(QLabel("Export stuff"))
+
+        placeholder_label = QLabel("TBD")
+        placeholder_label.setAlignment(Qt.AlignCenter)
+        placeholder_label.setStyleSheet("font-size: 14pt; color: gray;")
+        layout.addWidget(placeholder_label)
         self.tabs.addTab(mesh_tab, QIcon("tinysizer/gui/pics/export.png"), "Export")
 
 
@@ -483,6 +416,7 @@ class MainWindow(QMainWindow):
     # T R E E
     #########################################
     def create_model_tree(self):
+        #same code here
         """Creates dockable model tree widget"""
         dock = QDockWidget("Model Tree", self)
         dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
@@ -506,22 +440,8 @@ class MainWindow(QMainWindow):
         # Also handle regular clicks
         tree.itemClicked.connect(self.on_tree_item_clicked)
 
-
-        #TREE ITEMS---------------------
-        properties = QTreeWidgetItem(["Properties"])
-        #properties.addChild(QTreeWidgetItem(["Parts"]))
-        
-        others = QTreeWidgetItem(["Others"])
-        others.addChild(QTreeWidgetItem(["Elements"]))
-        others.addChild(QTreeWidgetItem(["Nodes"]))
-        
-        tree.addTopLevelItems([properties,others])
-        tree.expandAll()
-
         # Store the tree and properties item as instance variables
         self.tree_widget = tree
-        self.properties_item = properties  # Store the properties item for later use
-        #TREE ITEMS---------------------
 
         dock.setWidget(tree)
         self.addDockWidget(Qt.LeftDockWidgetArea, dock)
@@ -529,17 +449,27 @@ class MainWindow(QMainWindow):
         return dock
     
     def populate_tree(self, model_data):
-        """Populates the tree with model data"""
-        # Now use self.properties_item instead of the local 'properties' variable
-        for property_type,property_ids in model_data.properties.items():
-            type_item=QTreeWidgetItem([property_type])
+        """Clears and repopulates the model tree with fresh data"""
+
+        self.tree_widget.clear() #her load ile stack up olmamasi icin temizliyoruz önce -ymn
+
+        # Recreate top-level items
+        self.properties_item = QTreeWidgetItem(["Properties"])
+        self.assembly_item = QTreeWidgetItem(["Assemblies"])
+
+        self.tree_widget.addTopLevelItems([self.properties_item, self.assembly_item])
+        self.tree_widget.expandAll()
+
+        # Populate new data under 'Properties'
+        for property_type, property_ids in model_data.properties.items():
+            type_item = QTreeWidgetItem([property_type])
             self.properties_item.addChild(type_item)
+
             for pid in property_ids:
-                print(pid)
                 pid_item = QTreeWidgetItem([str(pid)])
                 type_item.addChild(pid_item)
 
-                # Store property ID as item data for use in the click handler
+                # Store property ID for click handler
                 pid_item.setData(0, Qt.UserRole, pid)
 
 
@@ -558,29 +488,106 @@ class MainWindow(QMainWindow):
         # Create context menu
         context_menu = QMenu()
         
-        # Add actions
+        # Add actions and connect them directly
         isolate_action = context_menu.addAction("Isolate Elements")
+        isolate_action.triggered.connect(lambda: self.isolate_elements_by_property(property_id))
+        
         mask_action = context_menu.addAction("Mask Elements")
+        mask_action.triggered.connect(lambda: self.mask_elements_by_property(property_id))
+        
         color_action = context_menu.addAction("Color Elements")
+        color_action.triggered.connect(lambda: self.handle_color_action(property_id))
+        
         reset_action = context_menu.addAction("Reset View")
+        reset_action.triggered.connect(self.pyv_plotter.reset_view)
         
-        # Show the menu and get the selected action
-        action = context_menu.exec_(self.tree_widget.mapToGlobal(position))
-        
-        # Handle the selected action
-        if action == isolate_action:
-            self.isolate_elements_by_property(property_id)
-        elif action == mask_action:
-            self.mask_elements_by_property(property_id)
-        elif action == color_action:
-            # Show color dialog
-            color = QColorDialog.getColor()
-            if color.isValid():
-                self.color_elements_by_property(property_id, color)
-        elif action == reset_action:
-            self.pyv_plotter.reset_view()
+        create_assembly_action = context_menu.addAction("Create Assembly")
+        create_assembly_action.triggered.connect(self.create_assembly)
+    
+        # Just show the menu - no need to handle return value
+        context_menu.exec_(self.tree_widget.mapToGlobal(position))
 
-    #BURASI HARD, SONRA YAPILABİLİR -ymn
+    def handle_color_action(self, property_id):
+        """Handle color action separately"""
+        from PySide6.QtWidgets import QColorDialog
+        color = QColorDialog.getColor()
+        if color.isValid():
+            self.color_elements_by_property(property_id, color)
+
+    def create_assembly(self):
+        """Open the assembly creation dialog"""
+        dialog = AssemblyDialog(parent=self)
+        dialog.assembly_created.connect(self.on_assembly_created)
+        dialog.exec_()
+
+    '''
+    def on_assembly_created(self, name, property_ids):
+        """Handle when assembly is created"""
+        print(f"Assembly '{name}' created with properties: {property_ids}")
+        # Add your assembly logic here
+        # For example:
+        # if not hasattr(self, 'assemblies'):
+        #     self.assemblies = {}
+        # self.assemblies[name] = property_ids
+    '''   
+
+    def on_assembly_created(self, assembly_name, property_ids):
+        """Handle the assembly creation"""
+        # Store the assembly
+       
+        if assembly_name in self.assemblies.keys(): #THE GATE !!! -ymn     
+            QMessageBox.critical(self, "Error", f"Assembly: {assembly_name} is already exist !")
+            return
+        
+        self.assemblies[assembly_name] = property_ids
+        self.sizing_tab.assembly_combo.currentTextChanged.connect(self.sizing_tab.update_property_combo)
+
+        if hasattr(self, 'sizing_tab'):
+            self.sizing_tab.update_assembly_combo()
+
+        # Add to your properties tree under "Assembly" category
+        self.add_assembly_to_tree(assembly_name, property_ids)
+        
+        print(f"Created assembly '{assembly_name}' with {len(property_ids)} properties")
+        
+    def add_assembly_to_tree(self, assembly_name, property_ids):
+        """Add the new assembly to your properties tree"""
+        # Find or create "Assembly" parent item
+        #assembly_parent = self.find_or_create_assembly_parent()
+        
+        # Create new assembly item
+        assembly_child = QTreeWidgetItem(self.assembly_item)
+        assembly_child.setText(0, assembly_name)
+
+        # Add property IDs as children (optional)
+        for prop_id in property_ids:
+            prop_item = QTreeWidgetItem(assembly_child)
+            prop_item.setText(0, str(prop_id))
+            
+        # Expand the assembly parent
+        self.assembly_item.setExpanded(True)
+        
+    def find_or_create_assembly_parent(self):
+        """Find existing 'Assembly' parent or create new one"""
+        root = self.tree_widget.invisibleRootItem()
+        
+        # Look for existing "Assembly" item
+        for i in range(root.childCount()):
+            child = root.child(i)
+            if child.text(0) == "Assembly":
+                return child
+                
+        # Create new "Assembly" parent if not found
+        assembly_parent = QTreeWidgetItem(root)
+        assembly_parent.setText(0, "Assembly")
+        
+        # Make it bold to distinguish as a category
+        font = QFont()
+        font.setBold(True)
+        assembly_parent.setFont(0, font)
+        
+        return assembly_parent
+
     def isolate_elements_by_property(self, property_id):
         return None
 
@@ -588,8 +595,11 @@ class MainWindow(QMainWindow):
         return None
 
     def color_elements_by_property(self, property_id, color):
-        """Color elements with the specified property ID"""
-        return None
+        if property_id in self.model_data.properties:
+            for element in self.model_data.properties[property_id]:
+                if hasattr(element, 'setBrush'):
+                    from PySide6.QtGui import QBrush
+                    element.setBrush(QBrush(color))
 
     def on_tree_item_clicked(self, item):
         """Handle clicks on tree items"""
@@ -626,6 +636,9 @@ class MainWindow(QMainWindow):
             
             # Store model_data for later use in result selection
             self.model_data = model_data
+            
+            # Add sizing tab if it doesn't exist and update it with model data
+            self.add_and_update_sizing_tab()
 
         # bdf ve op2 verildiyse
         elif load_status == "both":
@@ -649,6 +662,9 @@ class MainWindow(QMainWindow):
             
             # Store model_data for later use
             self.model_data = model_data
+            
+            # Add sizing tab if it doesn't exist and update it with model data
+            self.add_and_update_sizing_tab()
 
         # bdf ve op2 verilmediyse
         else:
@@ -676,8 +692,28 @@ class MainWindow(QMainWindow):
 
             else:
                 pass
+    
+    def add_and_update_sizing_tab(self):
+        """Add sizing tab if it doesn't exist and update it with model data"""
+        # Check if sizing tab already exists
+        sizing_tab_exists = False
+        sizing_tab_index = -1
+        
+        for i in range(self.tabs.count()):
+            if self.tabs.tabText(i) == "Sizing":
+                sizing_tab_exists = True
+                sizing_tab_index = i
+                break
+        
+        if not sizing_tab_exists:
+            # Add the sizing tab
+            self.tabs.insertTab(2, self.sizing_tab, QIcon("tinysizer/gui/pics/sizing.png"), "Sizing")
+        
+        # Update the sizing tab with model data
+        self.sizing_tab.update_with_model_data(self.model_data)
 
     def populate_result_controls(self, model_data):
+        #same code here
         """Populate UI controls for result selection (if they exist)"""
         # Check if the necessary UI components exist
         if hasattr(self, 'result_type_combo') and hasattr(self, 'subcase_combo') and hasattr(self, 'component_combo'):
@@ -703,6 +739,7 @@ class MainWindow(QMainWindow):
                 self.update_subcase_combo(model_data)
 
     def display_result(self):
+        #same code here
         """Display selected result"""
         if not hasattr(self, 'model_data'):
             QMessageBox.warning(self, "Warning", "No model data available!", QMessageBox.Ok)
@@ -901,7 +938,8 @@ class MainWindow(QMainWindow):
             else:
                 self.op2_input.setText(filename)
 
-    def handle_tab_change(self, index):
+    def handle_tab_change(self, index): #diger tab change fonksiyonları ile conflict, kapattim -ymn
+        return
         """Show/hide tree view based on current tab"""
         if index == 0:  # Main tab
             self.dock.hide()
@@ -915,6 +953,29 @@ class MainWindow(QMainWindow):
         y = (screen_geometry.height() - self.height()) // 2
         self.move(x, y)
 
+
+    def setup_tab_change_handler(self):
+        """Setup handler to show/hide tree dock based on active tab"""
+        # Connect to your tab widget's currentChanged signal
+        # Replace 'self.tabs' with your actual tab widget reference
+        if hasattr(self, 'tabs'):
+            self.tabs.currentChanged.connect(self.on_tab_changed)
+
+    def on_tab_changed(self, index):
+        """Handle tab change to show/hide tree dock"""
+        if not hasattr(self, 'dock'):
+            return
+        
+        # Get tab text
+        tab_text = self.tabs.tabText(index)
+        print(f"Changed to Tab: {tab_text}")
+        
+        if tab_text == "Geometry":
+            print("geo tab")
+            self.dock.show()
+        else:
+            print("other tab")
+            self.dock.hide()
     '''
     def resizeEvent(self, event):
         super().resizeEvent(event)
