@@ -53,6 +53,7 @@ class ModelData:
         dict
             Dictionary with IDs (element or node) as keys and result values as values
         """
+
         result_data={}
         # Handle thickness as a special case - it doesn't come from OP2 results
         if result_type == 'THICKNESS':
@@ -408,6 +409,17 @@ def validate_and_load(bdf_file, op2_file=None):
         except:
             try: model.read_bdf(bdf_file, punch=True, xref=False)
             except: model.read_bdf(bdf_file, punch=False, xref=False)
+        
+        '''
+        pid2eid=model.get_property_id_to_element_ids_map()
+        #store property ids for later -ymn
+        for pid, property in model.properties.items():
+            if pid not in self.properties:
+                self.properties[pid]=[]
+                self.properties[pid].extend(pid2eid[pid])
+            else:
+                self.properties[pid].extend(pid2eid[pid])
+        '''
         
         # Extract nodes
         model_data.nodes = model.nodes

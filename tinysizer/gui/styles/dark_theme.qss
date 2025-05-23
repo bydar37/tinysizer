@@ -101,7 +101,9 @@ QPushButton:pressed {
 }
 
 /* ---- Display Result Button Special Style ---- */
-QPushButton#displayResultButton {
+QPushButton#displayResultButton,
+QPushButton#sizeButton
+ {
     background-color: #2d2d2d;
     color: white;
     border: 1px solid  #00aaff;
@@ -111,17 +113,20 @@ QPushButton#displayResultButton {
     font-weight: bold;
 }
 
-QPushButton#displayResultButton:hover {
+QPushButton#displayResultButton:hover,
+QPushButton#sizeButton:hover {
     background-color: #3c3c3c;
     border: 1px solid  #00aaff;
 }
 
-QPushButton#displayResultButton:pressed {
+QPushButton#displayResultButton:pressed,
+QPushButton#sizeButton:pressed {
     background-color: #3c3c3c;
     border: 1px solid  #00aaff;
 }
 
-QPushButton#displayResultButton:disabled {
+QPushButton#displayResultButton:disabled,
+QPushButton#sizeButton:disabled {
     background-color: #555555;
     color: #888888;
     border: 1px solid #888888;
