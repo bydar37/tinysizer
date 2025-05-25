@@ -28,16 +28,17 @@ class AssemblyDialog(QDialog):
         layout.addLayout(name_layout)
         
         # Property IDs input
+        layout.addSpacing(5)
         ids_layout = QVBoxLayout()
-        ids_layout.addWidget(QLabel("Property IDs (comma-separated):"))
+        ids_layout.addWidget(QLabel("Property IDs:"))
         self.ids_input = QTextEdit()
-        self.ids_input.setPlaceholderText("Enter property IDs: 501, 502, 503...")
+        self.ids_input.setPlaceholderText("Enter property IDs...")
         self.ids_input.setMaximumHeight(80)
         ids_layout.addWidget(self.ids_input)
         layout.addLayout(ids_layout)
         
         # Example label
-        example_label = QLabel("Example: 501, 502, 503 or 501,502,503")
+        example_label = QLabel("Example: 501, 502, 503 or 501:603 or combination of both")
         example_label.setStyleSheet("color: gray; font-size: 10px;")
         layout.addWidget(example_label)
         
@@ -49,24 +50,25 @@ class AssemblyDialog(QDialog):
         
     def parse_property_ids(self, text):
         """Parse property IDs from text input"""
-        if not text.strip():
-            return []
-            
-        # Remove all whitespace and split by comma
-        ids_text = re.sub(r'\s+', '', text)
-        id_strings = ids_text.split(',')
-        
-        property_ids = []
-        for id_str in id_strings:
-            if id_str.strip():  # Skip empty strings
+        id_strings=set()
+        text=text.replace(","," ")
+        tokens=text.split()
+
+        for token in tokens:
+            if ':' in token:
                 try:
-                    # Try to convert to integer
-                    property_id = int(id_str)
-                    property_ids.append(property_id)
+                    start, end = map(int, token.split(':')) #kind of token.split(":")[0] and [1],
+                    id_strings.update(range(start, end + 1))
                 except ValueError:
-                    # If not integer, keep as string
-                    property_ids.append(id_str.strip())
-                    
+                    raise ValueError(f"Invalid range format: '{token}'")
+            else:
+                try:
+                    id_strings.add(int(token))
+                except ValueError:
+                    raise ValueError(f"Invalid number: '{token}'")
+
+        property_ids = [id_str for id_str in id_strings]
+          
         return property_ids
         
     def accept(self):
@@ -94,102 +96,8 @@ class AssemblyDialog(QDialog):
         super().accept()
 
 
-#BUGGY, HIC DEVREDE DEGIL BU ...
-class AssemblyManager(QWidget):
-    """Example widget that demonstrates right-click menu usage"""
     
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Assembly Manager Example")
-        self.resize(300, 200)
-        
-        # Enable context menu
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.show_context_menu)
-        
-        # Store assemblies
-        self.assemblies = {}
-        
-        layout = QVBoxLayout(self)
-        info_label = QLabel("Right-click anywhere to create assembly")
-        info_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(info_label)
-        
-        self.status_label = QLabel("No assemblies created")
-        self.status_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.status_label)
-        
-    def show_context_menu(self, position):
-        """Show context menu on right click"""
-        context_menu = QMenu(self)
-        
-        # Create assembly action
-        create_action = QAction("Create Assembly", self)
-        create_action.triggered.connect(self.create_assembly)
-        context_menu.addAction(create_action)
-        
-        # Show other actions if assemblies exist
-        if self.assemblies:
-            context_menu.addSeparator()
-            list_action = QAction("List Assemblies", self)
-            list_action.triggered.connect(self.list_assemblies)
-            context_menu.addAction(list_action)
+    
+    
             
-            clear_action = QAction("Clear All", self)
-            clear_action.triggered.connect(self.clear_assemblies)
-            context_menu.addAction(clear_action)
-        
-        # Show menu at cursor position
-        context_menu.exec_(self.mapToGlobal(position))
-        
-    def create_assembly(self):
-        """Open assembly creation dialog"""
-        dialog = AssemblyDialog(self)
-        dialog.assembly_created.connect(self.on_assembly_created)
-        dialog.exec_()
-        
-    def on_assembly_created(self, name, property_ids):
-        """Handle assembly creation"""
-        self.assemblies[name] = property_ids
-        print(f"Assembly '{name}' created with properties: {property_ids}")
-        
-        # Update status
-        self.update_status()
-        
-        # Show confirmation
-        QMessageBox.information(self, "Success", 
-                              f"Assembly '{name}' created successfully!\n"
-                              f"Properties: {', '.join(map(str, property_ids))}")
-        
-    def update_status(self):
-        """Update status label"""
-        count = len(self.assemblies)
-        if count == 0:
-            self.status_label.setText("No assemblies created")
-        else:
-            self.status_label.setText(f"{count} assembly(ies) created")
-            
-    def list_assemblies(self):
-        """Show all assemblies"""
-        if not self.assemblies:
-            QMessageBox.information(self, "Assemblies", "No assemblies created yet.")
-            return
-            
-        assembly_list = []
-        for name, props in self.assemblies.items():
-            props_str = ', '.join(map(str, props))
-            assembly_list.append(f"• {name}: [{props_str}]")
-            
-        message = "Created Assemblies:\n\n" + '\n'.join(assembly_list)
-        QMessageBox.information(self, "Assemblies", message)
-        
-    def clear_assemblies(self):
-        """Clear all assemblies"""
-        reply = QMessageBox.question(self, "Clear All", 
-                                   "Are you sure you want to clear all assemblies?",
-                                   QMessageBox.Yes | QMessageBox.No)
-        if reply == QMessageBox.Yes:
-            self.assemblies.clear()
-            self.update_status()
-            print("All assemblies cleared")
-
+ 

@@ -25,10 +25,13 @@ class PyVistaMeshPlotter(QFrame):
         # Add axes for reference
         self.add_axes()
         self.element_to_cell_map = {}
+        self.model_data=None
         
         # Set flag for tracking if we've rendered anything
         self.has_rendered = False
-        
+        self.mesh=None
+        self.mesh_sizing=None
+
     def add_axes(self):
         """Add coordinate axes to scene"""
         self.plotter.add_axes(xlabel='X', ylabel='Y', zlabel='Z', 
@@ -39,8 +42,16 @@ class PyVistaMeshPlotter(QFrame):
     def plot_sizing_tab(self,model_data,pid): 
         pid2eid=model_data.bdf.get_property_id_to_element_ids_map()
         nodes,elements=[],[]
-        #for pid in properties:
-        elids=pid2eid[pid]
+        
+        try:
+            elids=pid2eid[pid]
+        except:
+            print(f"Invalid property id {pid}")
+            self.plotter.clear()
+            self.add_axes()
+            self.plotter.add_text("Invalid property", position='lower_right', font_size=8, color='gray')
+            return
+        
         elements.extend(elids)
         for elid in elids:
             nodes.extend(model_data.bdf.elements[elid].nodes)
@@ -100,7 +111,7 @@ class PyVistaMeshPlotter(QFrame):
                 if valid_element:
                     # Format for PyVista: [4, idx0, idx1, idx2, idx3]
                     quad_faces.append([4] + face_indices)
-                    self.element_to_cell_map[eid] = cell_idx
+                    #self.element_to_cell_map[eid] = cell_idx
                     cell_idx += 1
 
         # Process triangular elements (CTRIA3)
@@ -119,7 +130,6 @@ class PyVistaMeshPlotter(QFrame):
                 if valid_element:
                     # Format for PyVista: [3, idx0, idx1, idx2]
                     tri_faces.append([3] + face_indices)
-                    self.element_to_cell_map[eid] = cell_idx
                     cell_idx += 1
 
         # Process bar elements (CBAR) -> asagida da benzer yer var, redundant olabilir mi burasi ? -ymn
@@ -138,7 +148,6 @@ class PyVistaMeshPlotter(QFrame):
                 if valid_element:
                     # Format for PyVista: [2, idx0, idx1]
                     bar_lines.append([2] + line_indices)
-                    self.element_to_cell_map[eid] = cell_idx
                     cell_idx += 1
 
         print(f"Successfully processed {len(quad_faces)} quads & {len(tri_faces)} triangles & {len(bar_lines)} bars.")
@@ -147,7 +156,7 @@ class PyVistaMeshPlotter(QFrame):
         ####################################################################
         ########## PLOTTING !!! -> pv.PolyData(points,faces)
         ####################################################################
-        self.mesh=pv.PolyData()
+        self.mesh_sizing=pv.PolyData()
         # Combine all faces for a single mesh
         faces = quad_faces + tri_faces
         if faces:
@@ -158,7 +167,7 @@ class PyVistaMeshPlotter(QFrame):
             
             # Create the mesh
             surface_mesh = pv.PolyData(points, faces=faces_array)
-            self.mesh = self.mesh.merge(surface_mesh) #later for colorizng by property -ymn
+            self.mesh_sizing = self.mesh_sizing.merge(surface_mesh) #later for colorizng by property -ymn
 
             
             self.plotter.add_mesh(surface_mesh, show_edges=True, color=[0.8, 0.8, 0.8], 
@@ -172,37 +181,19 @@ class PyVistaMeshPlotter(QFrame):
             line_mesh = pv.PolyData()
             line_mesh.points = points
             line_mesh.lines = flat_lines
-            self.mesh = self.mesh.merge(line_mesh) #later for colorizng by property -ymn
+            self.mesh_sizing = self.mesh_sizing.merge(line_mesh) #later for colorizng by property -ymn
 			
             self.plotter.add_mesh(line_mesh, show_edges=True, color=[0.8, 0.8, 0.8], 
                                                 edge_color='black', line_width=1.5, opacity=1.0)
                                                 
-        text=f"Displaying: {model_data.bdf.properties[pid].type} {pid}"
+        text=f"{model_data.bdf.properties[pid].type} {pid}"
         self.plotter.add_text(text, position='lower_right', font_size=8, color='gray')
         self.plotter.reset_camera()
         self.plotter.update()
         #self.has_rendered = True
-        
         print("Rendering complete")
 
-        ####################################################################
-        ########## PLOTTING !!! -> pv.PolyData(points,faces)
-        ####################################################################
-        self.mesh=pv.PolyData()
-        if quad_faces or tri_faces:
-            # Combine all faces for a single mesh
-            faces = quad_faces + tri_faces
-            if faces:
-                # Convert to the format PyVista expects
-                faces_array = []
-                for face in faces:
-                    faces_array.extend(face)
-                
-                # Create the mesh
-                surface_mesh = pv.PolyData(points, faces=faces_array)
-                self.mesh = self.mesh.merge(surface_mesh) #later for colorizng by property -ymn
-       
-    
+
     def plot_mesh(self, model_data, result_type=None, subcase_id=None, component=None):
         """
         Plot mesh from ModelData with optional results visualization
@@ -222,6 +213,8 @@ class PyVistaMeshPlotter(QFrame):
         # Extract nodes and elements from model_data
         nodes = model_data.nodes
         elements = model_data.elements
+        print(model_data)
+        self.model_data=model_data
         
         print("Plot mesh called with:", len(nodes) if nodes else 0, "nodes and", 
             len(elements.get('CQUAD4', [])) + len(elements.get('CTRIA3', [])), "elements")
@@ -301,7 +294,6 @@ class PyVistaMeshPlotter(QFrame):
                 if valid_element:
                     # Format for PyVista: [4, idx0, idx1, idx2, idx3]
                     quad_faces.append([4] + face_indices)
-                    self.element_to_cell_map[eid] = cell_idx
                     cell_idx += 1
 
             except Exception as e:
@@ -331,7 +323,6 @@ class PyVistaMeshPlotter(QFrame):
                 if valid_element:
                     # Format for PyVista: [3, idx0, idx1, idx2]
                     tri_faces.append([3] + face_indices)
-                    self.element_to_cell_map[eid] = cell_idx
                     cell_idx += 1
 
             except Exception as e:
@@ -361,7 +352,6 @@ class PyVistaMeshPlotter(QFrame):
                 if valid_element:
                     # Format for PyVista: [2, idx0, idx1]
                     bar_lines.append([2] + line_indices)
-                    self.element_to_cell_map[eid] = cell_idx
                     cell_idx += 1
 
             except Exception as e:
@@ -418,22 +408,6 @@ class PyVistaMeshPlotter(QFrame):
                                                 cmap='jet', edge_color='black', line_width=1.5,
                                                 scalar_bar_args={"title": f"{result_type} ({scalar_label})"})
 
-                            '''
-                            custom_bar=self.plotter.add_scalar_bar(
-                                    title = f"{result_type} ({scalar_label})",
-                                    width=0.4,                    # 40% of window width
-                                    height=0.08,                  # 8% of window heightthinner
-                                    position_x=0.3,
-                                    position_y=0.05,
-                                    title_font_size=18,
-                                    label_font_size=18,
-                                    n_labels=4,
-                                    interactive=False,
-                                    unconstrained_font_size=True
-                                )
-                                # Adjust the gap between title and labels (vertical bar only)
-                            custom_bar.GetTitleTextProperty().SetLineSpacing(1.5)
-                            '''
 
                         else:
                             # Element results require a bit more work
@@ -493,6 +467,7 @@ class PyVistaMeshPlotter(QFrame):
                 
                 print(f"Created mesh with {surface_mesh.n_points} points and {surface_mesh.n_cells} cells")
         
+        
         # Plot CBAR lines
         if bar_lines:
             flat_lines = [i for line in bar_lines for i in line]
@@ -545,12 +520,69 @@ class PyVistaMeshPlotter(QFrame):
                                 point_size=10, color='red')
             print("No elements found, displaying points only")
 
+        self.create_element_mapping_after_merge()
         self.plotter.reset_camera()
         self.plotter.update()
         self.has_rendered = True
-        
+
         print("Rendering complete")
-    
+
+
+    def create_element_mapping_after_merge(self):
+        """Build mapping AFTER mesh creation - accounts for PyVista ordering"""
+        # Surface elements come first in merged mesh
+        surface_cell_idx = 0
+        for eid,elem in self.model_data.bdf.elements.items():
+            if elem.type in ["CQUAD4", "CTRIA3"]:
+                self.element_to_cell_map[eid] = surface_cell_idx
+                surface_cell_idx += 1
+        
+        # Line elements come after surface elements
+        line_cell_idx = surface_cell_idx  # Start where surface ended
+        for eid,elem in self.model_data.bdf.elements.items():
+            if elem.type == "CBAR":
+                self.element_to_cell_map[eid] = line_cell_idx
+                line_cell_idx += 1
+
+    #BUGGGGGGGGGY!
+    def colorize_by_property(self, model_data):
+        # Build array to hold actual PID values for each cell
+        element_to_pid = np.full(self.mesh.n_cells, -1, dtype=int)  # Use -1 for missing
+        
+        missing_elements = []
+        for eid, cell_idx in self.element_to_cell_map.items():
+            if eid in model_data.bdf.elements:
+                pid = model_data.bdf.elements[eid].pid
+                element_to_pid[cell_idx] = pid
+            else:
+                missing_elements.append(eid)
+        
+        if missing_elements:
+            print(f"Warning: {len(missing_elements)} elements not found in BDF")
+        
+        # Get unique PIDs for colormap sizing
+        unique_pids = np.unique(element_to_pid[element_to_pid != -1])
+        print(f"Colorization -> unique PIDs: {len(unique_pids)}")
+        
+        # Store actual PID values as scalars
+        self.mesh.cell_data["Property ID"] = element_to_pid
+        
+        num_colors = len(unique_pids)
+        cmap = cm.get_cmap("tab20", num_colors)
+
+        self.plotter.clear()
+        self.plotter.add_mesh(
+            self.mesh,
+            scalars="Property ID",
+            show_edges=True,
+            cmap=cmap,
+            show_scalar_bar=False,  # Usually helpful to see PID values
+        )
+        
+        self.plotter.reset_camera()
+        self.plotter.render()
+
+
     def reset_view(self):
         """Reset the camera view"""
         self.plotter.reset_camera()
@@ -560,6 +592,7 @@ class PyVistaMeshPlotter(QFrame):
         """Handle cleanup when widget is closed"""
         self.plotter.close()
         super().closeEvent(event)
+
 
     #öylesine xD
     def plot_something_random(self):
@@ -586,32 +619,4 @@ class PyVistaMeshPlotter(QFrame):
         self.has_rendered = True
         print(f"Plotting: {random_example}")
 
-    def colorize_by_property(self, model_data):
-        #!!! BUGGY !!!
-        # Build array to hold actual PID values for each cell
-        element_to_pid = np.zeros(self.mesh.n_cells, dtype=int)
-
-        for eid, cell_idx in self.element_to_cell_map.items():
-            pid = model_data.bdf.elements[eid].pid
-            element_to_pid[cell_idx] = pid
-
-        # Store actual PID values as scalars
-        self.mesh.cell_data["Property ID"] = element_to_pid
-
-        # Choose a colormap (tab20 is good for categorical data)
-        num_colors = len(element_to_pid)
-        cmap = cm.get_cmap("tab20", num_colors)
-
-        self.plotter.clear()
-        # Plot using actual PID values as scalars
-        self.plotter.add_mesh(
-            self.mesh,
-            scalars="Property ID",
-            show_edges=True,
-            cmap=cmap,
-            show_scalar_bar=False,
-        )
-
-        self.plotter.reset_camera()
-        self.plotter.render()
-        
+    
