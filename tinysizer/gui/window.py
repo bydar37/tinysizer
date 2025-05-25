@@ -1,9 +1,10 @@
 
 import os
 import numpy as np
+import pyvista as pv
 from tinysizer.file import file_loader  # Import the file loader module
 from tinysizer.visualization.plotter_vista import PyVistaMeshPlotter
-from tinysizer.gui.sizing_tab import SizingTab
+from tinysizer.gui.sizing import SizingTab
 from tinysizer.gui.assembly import AssemblyDialog  
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap, QPainter, QIcon, QAction, QFont
@@ -11,8 +12,7 @@ from PySide6.QtWidgets import (QMainWindow, QApplication, QDockWidget, QComboBox
                               QTreeView, QTabWidget, QMenuBar, QStatusBar, QTreeWidget, QTableWidgetItem,
                               QWidget, QVBoxLayout, QPushButton, QLabel, QTreeWidgetItem, QToolBar,
                               QDialog, QFileDialog, QHBoxLayout, QLineEdit, QMessageBox, QSizePolicy,
-                              QColorDialog,QMenu,QFrame)
-
+                              QColorDialog,QMenu,QFrame, QInputDialog,QListWidgetItem)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -29,6 +29,7 @@ class MainWindow(QMainWindow):
         #stylsheet
         load_stylesheet = lambda path: open(path, "r").read()
         self.setStyleSheet(load_stylesheet("tinysizer/gui/styles/dark_theme.qss")) 
+        self.setWindowIcon(QIcon("tinysizer/gui/pics/main_window.ico"))
         
         # Create central widget
         self.central_widget = QWidget()
@@ -296,7 +297,7 @@ class MainWindow(QMainWindow):
             ("Edges", "tinysizer/gui/pics/edges.png", lambda: self.set_display_mode("edges")),
             ("Opacity", "tinysizer/gui/pics/opacity.png", lambda: self.set_display_mode("opacity")),
             ("Shortcuts", "tinysizer/gui/pics/shortcuts2.png", lambda: self.show_shortcuts()),
-            ("Placeholder", "tinysizer/gui/pics/edges.png", lambda: None)
+            ("Placeholder", "tinysizer/gui/pics/pokeball.png", lambda: None)
         ]
 
         # === TOP ROW (small buttons) ===
@@ -316,6 +317,13 @@ class MainWindow(QMainWindow):
         colorize_btn.setFixedSize(24, 24)
         colorize_btn.clicked.connect(lambda: self.pyv_plotter.colorize_by_property(self.model_data))
         top_controls.addWidget(colorize_btn)
+
+        hide_btn = QPushButton()
+        hide_btn.setIcon(QIcon("tinysizer/gui/pics/eye2.ico"))
+        hide_btn.setToolTip("Hide Elements")
+        hide_btn.setFixedSize(24, 24)
+        hide_btn.clicked.connect(lambda: self.hide_elements())
+        top_controls.addWidget(hide_btn)
 
         n=[7]
         # Split buttons into 3 groups of 6
@@ -475,39 +483,66 @@ class MainWindow(QMainWindow):
                 pid_item.setData(0, Qt.UserRole, pid)
 
 
-    def show_tree_context_menu(self, position):
+    def show_tree_context_menu(self, position): #position burada mouse x,y koordinatı sanırım, auto -ymn
         """Show context menu for tree items"""
         # Get the item at the clicked position
+        context_menu = QMenu(self)
         item = self.tree_widget.itemAt(position)
-        if not item:
-            return
         
         # Get property ID if available
-        property_id = item.data(0, Qt.UserRole)
-        if not property_id:
-            return  # No property ID stored in this item
-        
-        # Create context menu
-        context_menu = QMenu()
-        
-        # Add actions and connect them directly
-        isolate_action = context_menu.addAction("Isolate Elements")
-        isolate_action.triggered.connect(lambda: self.isolate_elements_by_property(property_id))
-        
-        mask_action = context_menu.addAction("Mask Elements")
-        mask_action.triggered.connect(lambda: self.mask_elements_by_property(property_id))
-        
-        color_action = context_menu.addAction("Color Elements")
-        color_action.triggered.connect(lambda: self.handle_color_action(property_id))
-        
-        #reset_action = context_menu.addAction("Reset View")
-        #reset_action.triggered.connect(self.pyv_plotter.reset_view)
-        
-        create_assembly_action = context_menu.addAction("Create Assembly")
-        create_assembly_action.triggered.connect(self.create_assembly)
-    
-        # Just show the menu - no need to handle return value
-        context_menu.exec_(self.tree_widget.mapToGlobal(position))
+        if item:
+            property_id = item.data(0, Qt.UserRole)
+
+        if item is None:
+            # Clicked on empty area
+            isolate_action = context_menu.addAction("Isolate Elements")
+            isolate_action.triggered.connect(self.isolate_elements_by_property)
+
+            mask_action = context_menu.addAction("Mask Elements")
+            mask_action.triggered.connect(self.mask_elements_by_property)
+
+            color_action = context_menu.addAction("Color Elements")
+            color_action.triggered.connect(self.handle_color_action)
+
+            create_assembly_action = context_menu.addAction("Create Assembly")
+            create_assembly_action.triggered.connect(self.create_assembly)
+
+        else:
+            depth = 0
+            parent = item.parent()
+            while parent:
+                depth += 1
+                parent = parent.parent()
+
+            if depth == 0:
+                # Top-level item: "Assemblies"
+                create_assembly_action = context_menu.addAction("Create Assembly")
+                create_assembly_action.triggered.connect(self.create_assembly)
+
+            elif depth == 1:
+                # Assembly item
+                assembly_name = item.text(0)
+
+                rename_action = context_menu.addAction("Rename Assembly")
+                rename_action.triggered.connect(lambda checked, i=item: self.rename_assembly(i))
+
+                delete_action = context_menu.addAction("Delete Assembly")
+                delete_action.triggered.connect(lambda checked, i=item: self.delete_assembly(i))
+
+                add_property_action = context_menu.addAction(f"Add Property to '{assembly_name}'")
+                add_property_action.triggered.connect(lambda checked, i=item: self.add_property_to_assembly(i))
+
+            elif depth == 2:
+                # Property item inside an assembly
+                property_id = item.text(0)
+
+                delete_property_action = context_menu.addAction(f"Remove Property {property_id}")
+                delete_property_action.triggered.connect(lambda checked, i=item: self.delete_property_from_assembly(i))
+
+        # Show context menu if it has actions
+        if not context_menu.isEmpty():
+            context_menu.exec_(self.tree_widget.mapToGlobal(position))
+
 
     def handle_color_action(self, property_id):
         """Handle color action separately"""
@@ -516,22 +551,45 @@ class MainWindow(QMainWindow):
         if color.isValid():
             self.color_elements_by_property(property_id, color)
 
+    #########################################
+    # A S S E M B L Y
+    #########################################
     def create_assembly(self):
         """Open the assembly creation dialog"""
         dialog = AssemblyDialog(parent=self)
         dialog.assembly_created.connect(self.on_assembly_created)
         dialog.exec_()
+    
+    def delete_assembly(self, assembly_item):
+        assembly_name = assembly_item.text(0)
+        reply = QMessageBox.question(
+            self, "Confirm Deletion",
+            f"Are you sure you want to delete assembly '{assembly_name}'?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            # Remove from the data dictionary
+            del self.assemblies[assembly_name]
+            
+            # Get the parent of the item (should be the root)
+            parent = assembly_item.parent()
+            if parent is None:
+                parent = self.tree_widget.invisibleRootItem()
+            
+            # Remove the item directly
+            parent.removeChild(assembly_item)
+            
+            # Clear selection and refresh the tree widget
+            self.tree_widget.clearSelection()
+            self.tree_widget.repaint()  # Use repaint() instead of update()
+            
+            # Update any dependent UI elements
+            if hasattr(self, 'sizing_tab'):
+                self.sizing_tab.update_assembly_combo()
+                self.sizing_tab.update_property_combo()
+        
+            print(f"Deleted assembly '{assembly_name}' and updated UI.")
 
-    '''
-    def on_assembly_created(self, name, property_ids):
-        """Handle when assembly is created"""
-        print(f"Assembly '{name}' created with properties: {property_ids}")
-        # Add your assembly logic here
-        # For example:
-        # if not hasattr(self, 'assemblies'):
-        #     self.assemblies = {}
-        # self.assemblies[name] = property_ids
-    '''   
 
     def on_assembly_created(self, assembly_name, property_ids):
         """Handle the assembly creation"""
@@ -541,6 +599,10 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", f"Assembly: {assembly_name} is already exist !")
             return
         
+      
+        ##handle non existent props, even if the user gave them, discard -ymn
+        property_ids=[pid for pid in property_ids if pid in self.model_data.bdf.properties]
+
         self.assemblies[assembly_name] = property_ids
         self.sizing_tab.assembly_combo.currentTextChanged.connect(self.sizing_tab.update_property_combo)
 
@@ -551,8 +613,9 @@ class MainWindow(QMainWindow):
         self.add_assembly_to_tree(assembly_name, property_ids)
         
         text=f"Created assembly '{assembly_name}' with {len(property_ids)} properties"
-        QMessageBox.information(self, "Success", text, QMessageBox.Ok)
+        #QMessageBox.information(self, "Success", text, QMessageBox.Ok)
         print(text)
+
         
     def add_assembly_to_tree(self, assembly_name, property_ids):
         """Add the new assembly to your properties tree"""
@@ -592,23 +655,157 @@ class MainWindow(QMainWindow):
         
         return assembly_parent
 
-    def isolate_elements_by_property(self, property_id):
-        return None
+    def rename_assembly(self, assembly_item):
+        """Rename an assembly from tree item"""
+        old_name = assembly_item.text(0)
+        if not old_name:
+            QMessageBox.information(self, "No Selection", "Please select an assembly to rename.")
+            return
+        
+        # Get new name from user
+        new_name, ok = QInputDialog.getText(
+            self, 
+            "Rename Assembly", 
+            f"Enter new name for '{old_name}':",
+            text=old_name
+        )
+        
+        if not ok or not new_name.strip():
+            return
+        
+        new_name = new_name.strip()
+        
+        # Check if new name already exists
+        if new_name in self.assemblies:
+            QMessageBox.critical(self, "Error", f"Assembly '{new_name}' already exists!")
+            return
+        
+        # Check if old assembly exists in data
+        if old_name not in self.assemblies:
+            QMessageBox.critical(self, "Error", f"Assembly '{old_name}' not found in data!")
+            return
+        
+        # Update the data dictionary (rename the key)
+        self.assemblies[new_name] = self.assemblies.pop(old_name)
+        
+        # Update the tree item text
+        assembly_item.setText(0, new_name)
+        
+        # Update any dependent UI elements (combo boxes etc.)
+        if hasattr(self, 'sizing_tab'):
+            self.sizing_tab.update_assembly_combo()
+            self.sizing_tab.update_property_combo()
+        
+        print(f"Renamed assembly '{old_name}' to '{new_name}'")
 
-    def mask_elements_by_property(self, property_id):
-        return None
 
-    def color_elements_by_property(self, property_id, color):
-        if property_id in self.model_data.properties:
-            for element in self.model_data.properties[property_id]:
-                if hasattr(element, 'setBrush'):
-                    from PySide6.QtGui import QBrush
-                    element.setBrush(QBrush(color))
+    def add_property_to_assembly(self, assembly_item):
+        """Add a property to the selected assembly"""
+        assembly_name = assembly_item.text(0)
+        if not assembly_name:
+            QMessageBox.information(self, "No Selection", "Please select an assembly.")
+            return
+        
+        # Check if assembly exists in data
+        if assembly_name not in self.assemblies:
+            QMessageBox.critical(self, "Error", f"Assembly '{assembly_name}' not found in data!")
+            return
+        
+        # Get property ID from user
+        property_ids, ok = QInputDialog.getText(self, "Enter Property IDs", "Enter IDs (comma-separated):")
+        property_ids = list(set((val.strip()) for val in property_ids.split(',') if val.strip())) #evet ben yaptim -ymn
 
-    def on_tree_item_clicked(self, item):
-        """Handle clicks on tree items"""
-        return None
+        if not ok:
+            return
+        
+        '''
+        # Check if property already exists in assembly
+        if property_id in self.assemblies[assembly_name]:
+            QMessageBox.warning(self, "Warning", f"Property {property_id} already exists in assembly '{assembly_name}'!")
+            return
+        '''
 
+        # Add to data structure
+        self.assemblies[assembly_name].extend(property_ids)
+        
+        # Add property as child in tree
+        for property_id in property_ids:
+            prop_item = QTreeWidgetItem(assembly_item)
+            prop_item.setText(0, str(property_id))
+        
+        # Expand the assembly to show new property
+        assembly_item.setExpanded(True)
+        
+        # Update UI components
+        if hasattr(self, 'sizing_tab'):
+            self.sizing_tab.update_property_combo()
+            self.sizing_tab.update_assembly_combo()
+        
+        print(f"Added property {property_ids} to assembly '{assembly_name}'")
+
+    def refresh_assembly_list(self):
+        """Refresh UI components after assembly changes"""
+        # Update combo boxes in sizing tab
+        if hasattr(self, 'sizing_tab'):
+            self.sizing_tab.update_assembly_combo()
+            self.sizing_tab.update_property_combo()
+        
+        # Refresh tree widget display
+        if hasattr(self, 'tree_widget'):
+            self.tree_widget.repaint()
+        
+        # If you want to refresh the tree widget instead:
+        # self.tree_widget.repaint()
+    
+
+    def delete_property_from_assembly(self, property_item):
+        """Delete a property from its parent assembly"""
+        # Get the property ID and parent assembly
+        property_id_str = property_item.text(0)
+        assembly_item = property_item.parent()
+        
+        if not assembly_item:
+            QMessageBox.critical(self, "Error", "Property item has no parent assembly!")
+            return
+        
+        assembly_name = assembly_item.text(0)
+        
+        try:
+            property_id = int(property_id_str)
+        except ValueError:
+            QMessageBox.critical(self, "Error", f"Invalid property ID: {property_id_str}")
+            return
+        
+        # Confirm deletion
+        reply = QMessageBox.question(
+            self, "Confirm Deletion",
+            f"Remove property {property_id} from assembly '{assembly_name}'?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply != QMessageBox.Yes:
+            return
+        
+        # Check if assembly exists in data
+        if assembly_name not in self.assemblies:
+            QMessageBox.critical(self, "Error", f"Assembly '{assembly_name}' not found in data!")
+            return
+        
+        # Remove from data structure
+        if property_id in self.assemblies[assembly_name]:
+            self.assemblies[assembly_name].remove(property_id)
+        else:
+            QMessageBox.warning(self, "Warning", f"Property {property_id} not found in assembly data!")
+        
+        # Remove from tree
+        assembly_item.removeChild(property_item)
+        
+        # Update UI components
+        if hasattr(self, 'sizing_tab'):
+            self.sizing_tab.update_property_combo()
+            self.sizing_tab.update_assembly_combo()
+        
+        print(f"Removed property {property_id} from assembly '{assembly_name}'")
 
     #########################################
     # R E A D  &  P L O T
@@ -931,6 +1128,123 @@ class MainWindow(QMainWindow):
         dialog.exec_()
 
 
+    #########################################
+    # M I S C C C 
+    #########################################
+    def isolate_elements_by_property(self, property_id):
+        return None
+
+    def mask_elements_by_property(self, property_id):
+        return None
+
+    def color_elements_by_property(self, property_id, color):
+        if property_id in self.model_data.properties:
+            for element in self.model_data.properties[property_id]:
+                if hasattr(element, 'setBrush'):
+                    from PySide6.QtGui import QBrush
+                    element.setBrush(QBrush(color))
+
+    def on_tree_item_clicked(self, item, position):
+        """Handle clicks on tree items"""
+        return None
+
+    #BUGGY !!!
+    def hide_elements(self):
+        if self.pyv_plotter.mesh is None:
+            print("No mesh available")
+            return
+        
+        # Store original mesh
+        if isinstance(self.pyv_plotter.mesh, pv.MultiBlock):
+            self.original_mesh = self.pyv_plotter.mesh.combine()
+        else:
+            self.original_mesh = self.pyv_plotter.mesh.copy()
+        
+        self.hidden_cells = set()
+            
+        def update_plot(picked):
+            # Handle MultiBlock selection
+            if isinstance(picked, pv.MultiBlock):
+                blocks = [b for b in picked if b is not None and b.n_cells > 0]
+                if not blocks:
+                    return
+                # Combine all selected IDs from blocks
+                selected_ids = []
+                for block in blocks:
+                    if 'orig_extract_id' in block.cell_data:
+                        selected_ids.extend(block.cell_data['orig_extract_id'])
+            else:
+                # Single mesh case
+                if picked.n_cells == 0 or 'orig_extract_id' not in picked.cell_data:
+                    return
+                selected_ids = picked.cell_data['orig_extract_id']
+
+            # Now store hidden cells
+            self.hidden_cells.update(selected_ids)
+            print(f"✅ Selected and hiding {len(selected_ids)} cells: {selected_ids}")
+
+            # Create mask to hide selected cells
+            mask = np.ones(self.original_mesh.n_cells, dtype=bool)
+            if self.hidden_cells:
+                mask[list(self.hidden_cells)] = False
+
+            visible_mesh = self.original_mesh.extract_cells(mask)
+
+            self.pyv_plotter.plotter.clear()
+            self.pyv_plotter.plotter.add_mesh(visible_mesh, name='main_mesh', pickable=True)
+
+            self.pyv_plotter.mesh = visible_mesh
+
+            # Reset scalar field if present
+            if hasattr(visible_mesh, 'cell_data') and 'values' in visible_mesh.cell_data:
+                visible_mesh.cell_data.active_scalars_name = 'values'
+
+            self.pyv_plotter.plotter.render()
+        
+        # Always disable picking first, then enable
+        self.pyv_plotter.plotter.disable_picking()
+        self.pyv_plotter.plotter.enable_cell_picking(callback=update_plot, show=False)
+
+        """
+        example:
+        import numpy as np
+        import vtk
+        import pyvista as pv
+        from numpy import random
+
+        pv.set_plot_theme('document')
+
+        mesh = pv.Sphere()
+
+        def update_plot(selection):
+            if not selection.n_cells:
+                return
+
+            ghost_cells = np.zeros(pl.mesh.n_cells, np.uint8)
+            ghost_cells[selection['orig_extract_id']] = 1
+            pl.mesh.cell_data[vtk.vtkDataSetAttributes.GhostArrayName()] = ghost_cells
+            pl.mesh.RemoveGhostCells()
+            pl.mesh.cell_data.active_scalars_name = 'values'  # added
+
+        def reset_plot():
+            mesh = orig_mesh.copy()
+            pl.clear()
+            pl.add_mesh(mesh, show_edges=True)
+            pl.enable_cell_picking(mesh=mesh, callback=update_plot, show=False)
+
+        values = random.rand(mesh.number_of_cells)
+
+        mesh.cell_data['values'] = values
+
+        orig_mesh = mesh.copy()
+
+        pl = pv.Plotter()
+        pl.add_mesh(mesh, show_edges=True)
+        pl.enable_cell_picking(mesh=mesh, callback=update_plot, show=False)
+        pl.add_key_event('o', reset_plot)
+        pl.show()
+        """
+        
     #########################################
     # H E L P E R S
     #########################################

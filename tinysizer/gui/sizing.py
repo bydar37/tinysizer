@@ -10,8 +10,10 @@ class SizingTab(QWidget):
         super().__init__(parent)
         self.parent = parent
         self.tabs = tabs
+        self.failures=None
+        self.materials=None
         self.sizing_pyv_plotter = None  # Initialize plotter as None
-        load_stylesheet = lambda path: open(path, "r").read()
+        load_stylesheet = lambda path: open(path, "r").read() #why ?
         self.setStyleSheet(load_stylesheet("tinysizer/gui/styles/dark_theme.qss"))
         self.setup_ui()
         #self.hide_parent_tree()
@@ -72,7 +74,7 @@ class SizingTab(QWidget):
             left_panel = QWidget()
             left_layout = QFormLayout(left_panel)
             left_layout.setVerticalSpacing(20)
-            left_layout.setContentsMargins(10, 100, 10, 10)
+            left_layout.setContentsMargins(10, 10, 10, 10)
             
             # Create the four widgets with labels
             # 1. Assembly dropdown
@@ -97,8 +99,25 @@ class SizingTab(QWidget):
             left_layout.addRow("Failures:", self.failures_btn)
             
             # Add spacer to push everything to the top
-            left_layout.addItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
+            #left_layout.addItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
             
+            """
+            self.materials_label=QLabel("Materials: None")
+            self.materials_label.setStyleSheet("font-size: 10pt; color: #888888; margin-left: 10px;")
+            self.materials_label.setWordWrap(True)
+            self.materials_label.setAlignment(Qt.AlignLeft)
+            left_layout.addRow(self.materials_label)
+
+            self.failures_label=QLabel("Failures: None")
+            self.failures_label.setStyleSheet("font-size: 10pt; color: #888888; margin-left: 10px;")
+            self.failures_label.setWordWrap(True)
+            self.failures_label.setAlignment(Qt.AlignLeft)
+            left_layout.addRow(self.failures_label)
+            """
+
+            # Add spacer to push everything to the top
+            left_layout.addItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
             # Right section (2/3 width) - PyVista viewer
             right_panel = QWidget()
             right_layout = QVBoxLayout(right_panel)
@@ -175,6 +194,50 @@ class SizingTab(QWidget):
             self.sizing_pyv_plotter.plot_mesh(model_data)
         '''
 
+    """
+    def update_selection_labels(self):
+        Update the display labels for selected materials and failures'''
+        # Update materials label and button style
+        if self.materials and len(self.materials) > 0:
+            materials_text = f"Materials: {', '.join(self.materials)}"
+            self.material_btn.setStyleSheet("color: #888888;")  # Gray out button text
+        else:
+            materials_text = "Materials: None"
+            self.material_btn.setStyleSheet("")  # Reset to default style
+        self.materials_label.setText(materials_text)
+        
+        # Update failures label and button style
+        if self.failures and len(self.failures) > 0:
+            failures_text = f"Failures: {', '.join(self.failures)}"
+            self.failures_btn.setStyleSheet("color: #888888;")  # Gray out button text
+        else:
+            failures_text = "Failures: None"
+            self.failures_btn.setStyleSheet("")  # Reset to default style
+        self.failures_label.setText(failures_text)
+    """
+    
+    def update_button_labels(self):
+        """Update button labels to show selections while keeping them clickable"""
+        # Update materials button
+        if self.materials and len(self.materials) > 0:
+            if len(self.materials) == 1:
+                self.material_btn.setText(f"{self.materials[0]}")
+            else:
+                self.material_btn.setText(f"{', '.join(self.materials[:2])}{'...' if len(self.materials) > 2 else ''}")
+            self.material_btn.setStyleSheet("color: #888888;")  # Gray out button text
+        else:
+            self.material_btn.setText("Select Materials...")
+        
+        # Update failures button
+        if self.failures and len(self.failures) > 0:
+            if len(self.failures) == 1:
+                self.failures_btn.setText(f"{self.failures[0]}")
+            else:
+                self.failures_btn.setText(f"{', '.join(self.failures[:2])}{'...' if len(self.failures) > 2 else ''}")
+            self.failures_btn.setStyleSheet("color: #888888;")
+        else:
+            self.failures_btn.setText("Select Failures...")
+
     def update_assembly_combo(self):
         self.assembly_combo.clear()
         if self.parent and self.parent.assemblies:
@@ -182,6 +245,7 @@ class SizingTab(QWidget):
 
     def update_property_combo(self, assembly_name=None):
         self.property_combo.clear()
+        self.property_combo.repaint()
         if assembly_name is None:
             assembly_name = self.assembly_combo.currentText()
         if self.parent and self.parent.assemblies and assembly_name in self.parent.assemblies:
@@ -194,11 +258,11 @@ class SizingTab(QWidget):
             property_id = int(pid)
             self.sizing_pyv_plotter.plot_sizing_tab(self.parent.model_data, property_id)
         except ValueError:
-            print(f"Invalid property ID: {pid}")
+            print(f"Invalid property ID: {pid}") #seems harmless as its triggered after assembly deletion -ymn
+            self.sizing_pyv_plotter.plotter.clear()
+            self.sizing_pyv_plotter.plotter.reset_camera()
+            self.sizing_pyv_plotter.plotter.render()
             return
-
-        
-
 
     def create_sizing_tab(self):
         """Legacy method - kept for compatibility but functionality moved to update_with_model_data"""
@@ -207,7 +271,6 @@ class SizingTab(QWidget):
         pass
 
     def open_material_selection(self):
-        #same code here
         """Opens a dialog for multiple material selection"""
         dialog = QDialog(self)
         dialog.setWindowTitle("Select Materials")
@@ -225,6 +288,9 @@ class SizingTab(QWidget):
         material_checkboxes = []
         for material in materials:
             checkbox = QCheckBox(material)
+            # Pre-check if material was previously selected
+            if self.materials and material in self.materials:
+                checkbox.setChecked(True)
             material_layout.addWidget(checkbox)
             material_checkboxes.append(checkbox)
         
@@ -232,14 +298,20 @@ class SizingTab(QWidget):
         
         # Add OK and Cancel buttons
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(dialog.accept)
+        button_box.accepted.connect(lambda: self.save_material_selection(material_checkboxes, dialog))
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)
         
         dialog.exec_()
 
+    def save_material_selection(self, checkboxes, dialog):
+        """Save the selected materials and update display"""
+        self.materials = [cb.text() for cb in checkboxes if cb.isChecked()]
+        #self.update_selection_labels()
+        self.update_button_labels()
+        dialog.accept()
+
     def open_failure_selection(self):
-        #same code here
         """Opens a dialog for multiple failure criteria selection"""
         dialog = QDialog(self)
         dialog.setWindowTitle("Select Failure Criteria")
@@ -257,6 +329,9 @@ class SizingTab(QWidget):
         failure_checkboxes = []
         for failure in failures:
             checkbox = QCheckBox(failure)
+            # Pre-check if failure was previously selected
+            if self.failures and failure in self.failures:
+                checkbox.setChecked(True)
             failure_layout.addWidget(checkbox)
             failure_checkboxes.append(checkbox)
         
@@ -264,11 +339,18 @@ class SizingTab(QWidget):
         
         # Add OK and Cancel buttons
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(dialog.accept)
+        button_box.accepted.connect(lambda: self.save_failure_selection(failure_checkboxes, dialog))
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)
         
         dialog.exec_()
+    
+    def save_failure_selection(self, checkboxes, dialog):
+        """Save the selected failures and update display"""
+        self.failures = [cb.text() for cb in checkboxes if cb.isChecked()]
+        #self.update_selection_labels()
+        self.update_button_labels()
+        dialog.accept()
 
     def show_analyze_size_options(self):
         #same code here
@@ -291,13 +373,11 @@ class SizingTab(QWidget):
         menu.exec_(self.analyze_size_btn.mapToGlobal(QPoint(0, self.analyze_size_btn.height())))
 
     def run_analysis(self):
-        #same code here
-        """Run the analysis operation"""
         print("Running analysis...")
-        # Add your analysis code here
+        print(f"Selected materials: {self.materials or []}")
+        print(f"Selected failures: {self.failures or []}")
 
     def run_sizing(self):
-        #same code here
-        """Run the sizing operation"""
         print("Running sizing...")
-        # Add your sizing code here
+        print(f"Selected materials: {self.materials or []}")
+        print(f"Selected failures: {self.failures or []}")
