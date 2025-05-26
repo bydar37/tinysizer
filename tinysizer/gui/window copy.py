@@ -4,7 +4,7 @@ import numpy as np
 import pyvista as pv
 from tinysizer.file import file_loader  # Import the file loader module
 from tinysizer.visualization.plotter_vista import PyVistaMeshPlotter
-from tinysizer.sizing.sizing_tab import SizingTab
+from tinysizer.sizing.sizing import SizingTab
 from tinysizer.gui.assembly import AssemblyDialog  
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap, QPainter, QIcon, QAction, QFont
@@ -429,9 +429,7 @@ class MainWindow(QMainWindow):
         "🔴 need for assembly isolate elements\n"
         "🔴 mask elements option\n"
         "🔴 maybe better indication of failure/material selection in sizing tab\n"
-        "🔴 make one sizing failure\n"
-        "🔴 center writings on that table, without loop preferably\n"
-        "🔴 differentiate inputs and outputs on that table again\n"
+        "🔴 make one sizing failure"
         )
         placeholder_label = QLabel(text)
         placeholder_label.setAlignment(Qt.AlignLeft)
@@ -485,8 +483,8 @@ class MainWindow(QMainWindow):
         # Recreate top-level items
         self.properties_item = QTreeWidgetItem(["Properties"])
         self.assembly_item = QTreeWidgetItem(["Assemblies"])
-        web_assembly=QTreeWidgetItem(["Web Assembly"])    
-        cap_assembly=QTreeWidgetItem(["Cap Assembly"])
+        web_assembly=QTreeWidgetItem(["Web Assemblies"])    
+        cap_assembly=QTreeWidgetItem(["Cap Assemblies"])
         self.assembly_item.addChild(web_assembly)
         self.assembly_item.addChild(cap_assembly)
 
@@ -539,12 +537,12 @@ class MainWindow(QMainWindow):
                 depth += 1
                 parent = parent.parent()
 
-            if depth == 0 or depth == 1:
+            if depth == 0:
                 # Top-level item: "Assemblies"
                 create_assembly_action = context_menu.addAction("Create Assembly")
                 create_assembly_action.triggered.connect(self.create_assembly)
 
-            elif depth == 2:
+            elif depth == 1:
                 # Assembly item
                 assembly_name = item.text(0)
 
@@ -557,7 +555,7 @@ class MainWindow(QMainWindow):
                 add_property_action = context_menu.addAction(f"Add Property to '{assembly_name}'")
                 add_property_action.triggered.connect(lambda checked, i=item: self.add_property_to_assembly(i))
 
-            elif depth == 3:
+            elif depth == 2:
                 # Property item inside an assembly
                 property_id = item.text(0)
 
@@ -615,139 +613,50 @@ class MainWindow(QMainWindow):
         
             print(f"Deleted assembly '{assembly_name}' and updated UI.")
 
-    def get_property_type_category(self, property_id):
-        """Determine if a property is shell, cap, or other type"""
-        try:
-            if property_id not in self.model_data.bdf.properties:
-                return None
-            
-            property_obj = self.model_data.bdf.properties[property_id]
-            property_type = property_obj.type
-            
-            # Define shell property types
-            shell_types = {'PSHELL', 'PCOMP', 'PCOMPG', 'PLPLANE'}
-            
-            # Define cap/beam property types  
-            cap_types = {'PBAR', 'PBEAM', 'PBEAML', 'PROD', 'PTUBE', 'PBARL'}
-            
-            if property_type in shell_types:
-                return 'shell'
-            elif property_type in cap_types:
-                return 'cap'
-            else:
-                return 'other'
-                
-        except Exception as e:
-            print(f"Error determining property type for ID {property_id}: {e}")
-            return 'other'
-
-    def categorize_properties(self, property_ids):
-        """Categorize properties into shell, cap, and other types"""
-        shell_props = []
-        cap_props = []
-        other_props = []
-        
-        for prop_id in property_ids:
-            category = self.get_property_type_category(prop_id)
-            if category == 'shell':
-                shell_props.append(prop_id)
-            elif category == 'cap':
-                cap_props.append(prop_id)
-            else:
-                other_props.append(prop_id)
-        
-        return shell_props, cap_props, other_props
 
     def on_assembly_created(self, assembly_name, property_ids):
-        """Handle the assembly creation with automatic categorization"""
+        """Handle the assembly creation"""
         # Store the assembly
+       
         if assembly_name in self.assemblies.keys(): #THE GATE !!! -ymn     
             QMessageBox.critical(self, "Error", f"Assembly: {assembly_name} is already exist !")
             return
         
-        # Handle non existent props, even if the user gave them, discard -ymn
-        property_ids = [pid for pid in property_ids if pid in self.model_data.bdf.properties]
-        
-        if not property_ids:
-            QMessageBox.warning(self, "Warning", "No valid properties found for this assembly!")
-            return
-        
-        # Categorize properties
-        shell_props, cap_props, other_props = self.categorize_properties(property_ids)
-        
-        # Create separate assemblies for different types if mixed
-        assemblies_created = []
-        
-        if shell_props:
-            shell_assembly_name = f"{assembly_name} (Web)" if (cap_props or other_props) else assembly_name
-            self.assemblies[shell_assembly_name] = shell_props
-            self.add_assembly_to_tree(shell_assembly_name, shell_props, 'shell')
-            assemblies_created.append((shell_assembly_name, len(shell_props), 'Shell'))
-        
-        if cap_props:
-            cap_assembly_name = f"{assembly_name} (Cap)" if (shell_props or other_props) else assembly_name
-            self.assemblies[cap_assembly_name] = cap_props
-            self.add_assembly_to_tree(cap_assembly_name, cap_props, 'cap')
-            assemblies_created.append((cap_assembly_name, len(cap_props), 'Cap'))
-        
-        if other_props:
-            other_assembly_name = f"{assembly_name} (Other)" if (shell_props or cap_props) else assembly_name
-            self.assemblies[other_assembly_name] = other_props
-            self.add_assembly_to_tree(other_assembly_name, other_props, 'other')
-            assemblies_created.append((other_assembly_name, len(other_props), 'Other'))
-        
-        # Update UI components
+      
+        ##handle non existent props, even if the user gave them, discard -ymn
+        property_ids=[pid for pid in property_ids if pid in self.model_data.bdf.properties]
+
+        self.assemblies[assembly_name] = property_ids
         self.sizing_tab.assembly_combo.currentTextChanged.connect(self.sizing_tab.update_property_combo)
-        
+
         if hasattr(self, 'sizing_tab'):
             self.sizing_tab.update_assembly_combo()
+
+        # Add to your properties tree under "Assembly" category
+        self.add_assembly_to_tree(assembly_name, property_ids)
         
-        # Print summary
-        for name, count, category in assemblies_created:
-            print(f"Created {category} assembly '{name}' with {count} properties")
+        text=f"Created assembly '{assembly_name}' with {len(property_ids)} properties"
+        #QMessageBox.information(self, "Success", text, QMessageBox.Ok)
+        print(text)
+
         
-    def add_assembly_to_tree(self, assembly_name, property_ids, category='other'):
-        """Add the new assembly to appropriate existing category"""
-        # Use existing tree items based on category
-        if category == 'shell':
-            parent_item = self.get_web_assembly_item()
-        elif category == 'cap':
-            parent_item = self.get_cap_assembly_item()
-        else:
-            # For 'other' category, default to Web Assembly
-            parent_item = self.get_web_assembly_item()
+    def add_assembly_to_tree(self, assembly_name, property_ids):
+        """Add the new assembly to your properties tree"""
+        # Find or create "Assembly" parent item
+        #assembly_parent = self.find_or_create_assembly_parent()
         
-        # Create new assembly item under appropriate parent
-        assembly_child = QTreeWidgetItem(parent_item)
+        # Create new assembly item
+        assembly_child = QTreeWidgetItem(self.assembly_item)
         assembly_child.setText(0, assembly_name)
 
-        # Add property IDs as children
+        # Add property IDs as children (optional)
         for prop_id in property_ids:
             prop_item = QTreeWidgetItem(assembly_child)
             prop_item.setText(0, str(prop_id))
             
-        # Expand the parent category and main assembly item
-        parent_item.setExpanded(True)
+        # Expand the assembly parent
         self.assembly_item.setExpanded(True)
         
-    def get_web_assembly_item(self):
-        """Get the Web Assembly tree item"""
-        # Find "Web Assembly" under assembly_item
-        for i in range(self.assembly_item.childCount()):
-            child = self.assembly_item.child(i)
-            if child.text(0) == "Web Assembly":
-                return child
-        return None
-    
-    def get_cap_assembly_item(self):
-        """Get the Cap Assembly tree item"""
-        # Find "Cap Assembly" under assembly_item  
-        for i in range(self.assembly_item.childCount()):
-            child = self.assembly_item.child(i)
-            if child.text(0) == "Cap Assembly":
-                return child
-        return None
-
     def find_or_create_assembly_parent(self):
         """Find existing 'Assembly' parent or create new one"""
         root = self.tree_widget.invisibleRootItem()
@@ -812,8 +721,9 @@ class MainWindow(QMainWindow):
         
         print(f"Renamed assembly '{old_name}' to '{new_name}'")
 
+
     def add_property_to_assembly(self, assembly_item):
-        """Add a property to the selected assembly with type checking"""
+        """Add a property to the selected assembly"""
         assembly_name = assembly_item.text(0)
         if not assembly_name:
             QMessageBox.information(self, "No Selection", "Please select an assembly.")
@@ -825,60 +735,24 @@ class MainWindow(QMainWindow):
             return
         
         # Get property ID from user
-        property_ids_input, ok = QInputDialog.getText(self, "Enter Property IDs", "Enter IDs (comma-separated):")
-        
+        property_ids, ok = QInputDialog.getText(self, "Enter Property IDs", "Enter IDs (comma-separated):")
+        property_ids = list(set((val.strip()) for val in property_ids.split(',') if val.strip())) #evet ben yaptim -ymn
+
         if not ok:
             return
-            
-        property_ids = list(set((val.strip()) for val in property_ids_input.split(',') if val.strip())) #evet ben yaptim -ymn
         
-        # Convert to integers and filter valid properties
-        valid_property_ids = []
-        for pid_str in property_ids:
-            try:
-                pid = int(pid_str)
-                if pid in self.model_data.bdf.properties:
-                    valid_property_ids.append(pid)
-                else:
-                    print(f"Warning: Property ID {pid} not found in model")
-            except ValueError:
-                print(f"Warning: Invalid property ID format: {pid_str}")
-        
-        if not valid_property_ids:
-            QMessageBox.warning(self, "Warning", "No valid property IDs provided!")
+        '''
+        # Check if property already exists in assembly
+        if property_id in self.assemblies[assembly_name]:
+            QMessageBox.warning(self, "Warning", f"Property {property_id} already exists in assembly '{assembly_name}'!")
             return
-        
-        # Determine the expected category based on assembly location
-        parent_item = assembly_item.parent()
-        expected_category = None
-        if parent_item:
-            parent_name = parent_item.text(0)
-            if parent_name == "Web Assembly":
-                expected_category = 'shell'
-            elif parent_name == "Cap Assembly":
-                expected_category = 'cap'
-        if expected_category:
-            mismatched_props = []
-            for pid in valid_property_ids:
-                prop_category = self.get_property_type_category(pid)
-                if prop_category != expected_category:
-                    mismatched_props.append((pid, prop_category))
-            
-            if mismatched_props:
-                mismatch_msg = "\n".join([f"Property {pid}: {cat}" for pid, cat in mismatched_props])
-                reply = QMessageBox.question(
-                    self, "Type Mismatch Warning",
-                    f"Some properties don't match the assembly category:\n{mismatch_msg}\n\nContinue anyway?",
-                    QMessageBox.Yes | QMessageBox.No
-                )
-                if reply != QMessageBox.Yes:
-                    return
-        
+        '''
+
         # Add to data structure
-        self.assemblies[assembly_name].extend(valid_property_ids)
+        self.assemblies[assembly_name].extend(property_ids)
         
         # Add property as child in tree
-        for property_id in valid_property_ids:
+        for property_id in property_ids:
             prop_item = QTreeWidgetItem(assembly_item)
             prop_item.setText(0, str(property_id))
         
@@ -890,7 +764,7 @@ class MainWindow(QMainWindow):
             self.sizing_tab.update_property_combo()
             self.sizing_tab.update_assembly_combo()
         
-        print(f"Added properties {valid_property_ids} to assembly '{assembly_name}'")
+        print(f"Added property {property_ids} to assembly '{assembly_name}'")
 
     def refresh_assembly_list(self):
         """Refresh UI components after assembly changes"""
@@ -902,7 +776,11 @@ class MainWindow(QMainWindow):
         # Refresh tree widget display
         if hasattr(self, 'tree_widget'):
             self.tree_widget.repaint()
+        
+        # If you want to refresh the tree widget instead:
+        # self.tree_widget.repaint()
     
+
     def delete_property_from_assembly(self, property_item):
         """Delete a property from its parent assembly"""
         # Get the property ID and parent assembly
