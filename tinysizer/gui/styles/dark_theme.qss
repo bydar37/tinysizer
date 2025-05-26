@@ -252,3 +252,38 @@ QFrame#fadeSeparator {
 #topControlsLayout QPushButton:hover {
     background-color: rgba(100, 100, 100, 0.15);
 }
+
+/*--------------------------------*/
+
+QTableWidget {
+    border: 1px solid #444;
+    border-radius: 6px;
+    gridline-color: #333;
+    font-size: 12px;
+    background-color: #1e1e1e;
+    color: #f0f0f0;
+    alternate-background-color: #252525;
+    selection-background-color: #005f87;
+    selection-color: white;
+}
+
+QTableWidget::item {
+    padding: 6px;
+}
+
+QTableWidget::item:hover {
+    background-color: #2c2c2c;
+}
+
+QTableWidget::item:selected {
+    background-color: #007acc;
+    color: #ffffff;
+}
+
+QHeaderView::section {
+    background-color: #2a2a2a;
+    color: #ffffff;
+    border: 1px solid #444;
+    font-weight: bold;
+    padding: 6px;
+}
