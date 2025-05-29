@@ -426,7 +426,7 @@ class MainWindow(QMainWindow):
 
         text = (
         "👤 BURAK\n"
-        "🔴 geometry tab, property colorization düzeltilmeli\n"
+        "🔴 window.py geometry tab, property colorization düzeltilmeli\n"
         "🔴 hide elements düzeltilmeli\n\n"
         
         "👤 ÖMER\n"
