@@ -1,7 +1,7 @@
 from tinysizer.visualization.plotter_vista import PyVistaMeshPlotter
 from tinysizer.sizing.calculations import Calculator
 from PySide6.QtCore import Qt, QPoint
-from PySide6.QtGui import QIcon, QAction
+from PySide6.QtGui import QIcon, QAction, QColor
 from PySide6.QtWidgets import (QComboBox, QTableWidget, QTableWidgetItem, QFormLayout, QGroupBox,
                                 QWidget,QVBoxLayout, QPushButton, QDialog, QSpacerItem, QHeaderView,
                                 QHBoxLayout,QSizePolicy, QMenu,QFrame,QSplitter, QDialogButtonBox, QCheckBox,QMainWindow,QLabel)
@@ -11,10 +11,11 @@ class SizingTab(QWidget):
         super().__init__(parent)
         self.parent = parent
         self.tabs = tabs
-        self.failures=None
-        self.materials=None
-        self.current_assembly_type = None  # Track current assembly type
-        self.sizing_pyv_plotter = None  # Initialize plotter as None
+        # Store selections per assembly
+        self.assembly_selections = {}  # Format: {assembly_name: {'materials': [...], 'failures': [...]}}
+        self.current_assembly_type = None
+        self.sizing_pyv_plotter = None
+
         load_stylesheet = lambda path: open(path, "r").read() #why ?
         self.setStyleSheet(load_stylesheet("tinysizer/gui/styles/dark_theme.qss"))
         self.setup_ui()
@@ -84,6 +85,14 @@ class SizingTab(QWidget):
         if not model_data:
             return
         
+        def toggle_nastran():
+                if self.nastran_switch.isChecked(): self.nastran_switch.setText("ON")
+                else: self.nastran_switch.setText("OFF")
+                    
+        def toggle_ai():
+                if self.ai_switch.isChecked(): self.ai_switch.setText("ON")
+                else: self.ai_switch.setText("OFF")
+
         # Hide placeholder and show content
         self.placeholder_label.hide()
         self.content_widget.show()
@@ -136,6 +145,63 @@ class SizingTab(QWidget):
             self.failures_btn.clicked.connect(self.open_failure_selection)
             left_layout.addRow("Failures:", self.failures_btn)
             
+            # 5. Toggle switches section
+            # Update Nastran toggle
+            nastran_widget = QWidget()
+            nastran_layout = QHBoxLayout(nastran_widget)
+            nastran_layout.setContentsMargins(0, 20, 0, 0) # Left, Top, Right, Bottom
+            #nastran_layout.setSpacing(20)
+            nastran_layout.setAlignment(Qt.AlignLeft)
+            
+            nastran_label = QLabel("Update Nastran")
+            self.nastran_switch = QPushButton()
+            self.nastran_switch.setCheckable(True)
+            self.nastran_switch.setChecked(False)
+            self.nastran_switch.setFixedSize(50, 25)
+            self.nastran_switch.setText("OFF")
+            self.nastran_switch.setObjectName("nastranSwitch")
+            self.nastran_switch.toggled.connect(toggle_nastran)
+            
+            nastran_layout.addWidget(nastran_label)
+            nastran_layout.addStretch()
+            nastran_layout.addWidget(self.nastran_switch)
+            left_layout.addRow(nastran_widget)
+            
+            # AI Mode toggle
+            ai_widget = QWidget()
+            ai_layout = QHBoxLayout(ai_widget)
+            ai_layout.setContentsMargins(0, 0, 0, 0)
+            #ai_layout.setSpacing(20)
+            ai_layout.setAlignment(Qt.AlignLeft)
+            
+            ai_label = QLabel("AI Mode")
+            self.ai_switch = QPushButton()
+            self.ai_switch.setCheckable(True)
+            self.ai_switch.setChecked(False)
+            self.ai_switch.setFixedSize(50, 25)
+            self.ai_switch.setText("OFF")
+            self.ai_switch.setObjectName("aiSwitch")
+            self.ai_switch.toggled.connect(toggle_ai)
+            
+            ai_layout.addWidget(ai_label)
+            ai_layout.addStretch()
+            ai_layout.addWidget(self.ai_switch)
+            left_layout.addRow(ai_widget)
+            
+            # 6. Size button - centered and styled
+            button_wrapper = QWidget()
+            button_wrapper_layout = QHBoxLayout(button_wrapper)
+            button_wrapper_layout.setContentsMargins(0, 20, 0, 10) # Left, Top, Right, Bottom
+            button_wrapper_layout.setAlignment(Qt.AlignCenter)
+            
+            self.analyze_size_btn = QPushButton("Size")
+            self.analyze_size_btn.setFixedSize(120, 50)
+            self.analyze_size_btn.clicked.connect(self.run_sizing)
+            self.analyze_size_btn.setObjectName("sizeButton")
+            
+            button_wrapper_layout.addWidget(self.analyze_size_btn)
+            left_layout.addRow(button_wrapper)
+            
             # Add spacer to push everything to the top
             left_layout.addItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
 
@@ -168,80 +234,58 @@ class SizingTab(QWidget):
             
             # Left part (3/4 width) - Editable table
             table_frame = QFrame()
-            table_frame.setFrameShape(QFrame.StyledPanel)
+            table_frame.setFrameShape(QFrame.NoFrame)
             table_layout = QVBoxLayout(table_frame)
             
             # Create table with 6 visible columns and 2 rows (skip the "Dimension" title)
             self.sizing_table = QTableWidget(2, 8)
-
-            # Set column headers WITHOUT the "Dimension" label
             headers = ["", "Min", "Max", "Step", "Result", "RF", "Failure", "Material"]
             self.sizing_table.setHorizontalHeaderLabels(headers)
 
-            # Set default values in the first column (no header, just values)
+            # Your existing code continues unchanged...
             parameters = ["Thickness (mm)", "Width (mm)"]
             for row in range(2):
                 item = QTableWidgetItem(parameters[row])
-                item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)  # Read-only
+                item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                 item.setTextAlignment(Qt.AlignCenter)
                 
-                # Optional: make text bold
                 font = item.font()
                 font.setBold(True)
                 item.setFont(font)
-
                 self.sizing_table.setItem(row, 0, item)
-            
-                for col in range(4, 8):  # columns 4 to 7 inclusive
-                    item = QTableWidgetItem(self.sizing_table.item(row, col) or QTableWidgetItem())
-                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)  # Read-only but selectable
-                    #item.setTextAlignment(Qt.AlignCenter)  # optional centering
-                    self.sizing_table.setItem(row, col, item)
 
+                # Output columns (Result, RF, Failure, Material)
+                for col in range(4, 8):
+                    item = QTableWidgetItem(self.sizing_table.item(row, col) or QTableWidgetItem())
+                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    item.setForeground(QColor(200, 200, 255))
+                    self.sizing_table.setItem(row, col, item)
+                    
+                # Input columns (Min, Max, Step)
+                for col in range(1, 4):
+                    item = QTableWidgetItem("")
+                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsEditable)
+                    self.sizing_table.setItem(row, col, item)
+                        
             # Hide the vertical header (the top-left corner empty cell comes from this)
             self.sizing_table.verticalHeader().setVisible(False)
             self.sizing_table.verticalHeader().setDefaultSectionSize(40)  # Row height
+            self.sizing_table.horizontalHeader().setFixedHeight(40)
+            row_count = self.sizing_table.rowCount()
+            row_height = self.sizing_table.verticalHeader().defaultSectionSize()
+            header_height = self.sizing_table.horizontalHeader().height()
+            self.sizing_table.setFixedHeight(row_count * row_height + header_height + 2)
 
             # Make the table expand to available space
             self.sizing_table.horizontalHeader().setStretchLastSection(True)
             self.sizing_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
             self.sizing_table.setAlternatingRowColors(True)
             self.sizing_table.setSortingEnabled(False)
-
+            
             table_layout.addWidget(self.sizing_table)
             
-            # Right part (1/4 width) - Analyze/Size button with dropdown
-            '''
-            button_frame = QFrame()
-            button_layout = QVBoxLayout(button_frame)
-            button_layout.setAlignment(Qt.AlignCenter)
-            button_layout.addSpacing(50)
-            '''
-
-            # Create a button that will show a dropdown menu when clicked
-            button_wrapper = QWidget()
-            button_wrapper_layout = QHBoxLayout(button_wrapper)
-            button_wrapper_layout.setContentsMargins(0, 30, 0, 35)  # Top/Bottom space
-            button_wrapper_layout.setAlignment(Qt.AlignCenter)      # Center the button
-
-            # Create the button
-            self.analyze_size_btn = QPushButton("Size")
-            self.analyze_size_btn.setFixedSize(120, 60)  # Sleek size
-            self.analyze_size_btn.clicked.connect(self.run_sizing)
-            self.analyze_size_btn.setObjectName("sizeButton")
-
-            # Add the button to the wrapper layout
-            button_wrapper_layout.addWidget(self.analyze_size_btn)
-            # Add the wrapper to the form layout (instead of just the button)
-            left_layout.addRow(button_wrapper)
-                        
-            # Add spacer to push everything to the top
-            #button_layout.addItem(QSpacerItem(15, 60, QSizePolicy.Minimum, QSizePolicy.Expanding))
-            
-            # Add the table and button to the bottom layout with proper sizing
-            #bottom_layout.addWidget(table_frame, 3)  # 3/4 width
-            #bottom_layout.addWidget(button_frame, 1)  # 1/4 width
-            bottom_layout.addWidget(table_frame)  # Table takes full width
+            # Add the table to the bottom layout (takes full width)
+            bottom_layout.addWidget(table_frame)
 
     def on_assembly_changed(self, assembly_name):
         """Handle assembly selection change and update UI accordingly"""
@@ -258,10 +302,35 @@ class SizingTab(QWidget):
         # Update property combo
         self.update_property_combo(assembly_name)
         
-        # Reset selections when assembly changes
-        self.materials = None
-        self.failures = None
+        # Load existing selections for this assembly (instead of resetting)
+        if assembly_name in self.assembly_selections:
+            selections = self.assembly_selections[assembly_name]
+            # Restore previous selections
+            self.current_materials = selections.get('materials', [])
+            self.current_failures = selections.get('failures', [])
+        else:
+            # Initialize new assembly with empty selections
+            self.assembly_selections[assembly_name] = {'materials': [], 'failures': []}
+            self.current_materials = []
+            self.current_failures = []
+        
         self.update_button_labels()
+
+    @property #-> built-in decorator
+    def materials(self):
+        """Get current assembly's materials"""
+        assembly_name = self.assembly_combo.currentText()
+        if assembly_name in self.assembly_selections:
+            return self.assembly_selections[assembly_name].get('materials', [])
+        return []
+
+    @property  
+    def failures(self):
+        """Get current assembly's failures"""
+        assembly_name = self.assembly_combo.currentText()
+        if assembly_name in self.assembly_selections:
+            return self.assembly_selections[assembly_name].get('failures', [])
+        return []
 
     def update_table_for_assembly_type(self):
         """Update table rows based on assembly type"""
@@ -296,21 +365,23 @@ class SizingTab(QWidget):
     def update_button_labels(self):
         """Update button labels to show selections while keeping them clickable"""
         # Update materials button
-        if self.materials and len(self.materials) > 0:
-            if len(self.materials) == 1:
-                self.material_btn.setText(f"{self.materials[0]}")
+        current_materials = self.materials  # Uses the property
+        if current_materials and len(current_materials) > 0:
+            if len(current_materials) == 1:
+                self.material_btn.setText(f"{current_materials[0]}")
             else:
-                self.material_btn.setText(f"{', '.join(self.materials[:2])}{'...' if len(self.materials) > 2 else ''}")
-            self.material_btn.setStyleSheet("color: #888888;")  # Gray out button text
+                self.material_btn.setText(f"{', '.join(current_materials[:2])}{'...' if len(current_materials) > 2 else ''}")
+            self.material_btn.setStyleSheet("color: #888888;")
         else:
             self.material_btn.setText("Select Materials...")
         
-        # Update failures button
-        if self.failures and len(self.failures) > 0:
-            if len(self.failures) == 1:
-                self.failures_btn.setText(f"{self.failures[0]}")
+        # Update failures button  
+        current_failures = self.failures  # Uses the property
+        if current_failures and len(current_failures) > 0:
+            if len(current_failures) == 1:
+                self.failures_btn.setText(f"{current_failures[0]}")
             else:
-                self.failures_btn.setText(f"{', '.join(self.failures[:2])}{'...' if len(self.failures) > 2 else ''}")
+                self.failures_btn.setText(f"{', '.join(current_failures[:2])}{'...' if len(current_failures) > 2 else ''}")
             self.failures_btn.setStyleSheet("color: #888888;")
         else:
             self.failures_btn.setText("Select Failures...")
@@ -387,8 +458,14 @@ class SizingTab(QWidget):
 
     def save_material_selection(self, checkboxes, dialog):
         """Save the selected materials and update display"""
-        self.materials = [cb.text() for cb in checkboxes if cb.isChecked()]
-        self.update_button_labels()
+        assembly_name = self.assembly_combo.currentText()
+        if assembly_name:
+            if assembly_name not in self.assembly_selections:
+                self.assembly_selections[assembly_name] = {'materials': [], 'failures': []}
+            
+            selected_materials = [cb.text() for cb in checkboxes if cb.isChecked()]
+            self.assembly_selections[assembly_name]['materials'] = selected_materials
+            self.update_button_labels()
         dialog.accept()
 
     def open_failure_selection(self):
@@ -426,8 +503,14 @@ class SizingTab(QWidget):
     
     def save_failure_selection(self, checkboxes, dialog):
         """Save the selected failures and update display"""
-        self.failures = [cb.text() for cb in checkboxes if cb.isChecked()]
-        self.update_button_labels()
+        assembly_name = self.assembly_combo.currentText()
+        if assembly_name:
+            if assembly_name not in self.assembly_selections:
+                self.assembly_selections[assembly_name] = {'materials': [], 'failures': []}
+            
+            selected_failures = [cb.text() for cb in checkboxes if cb.isChecked()]
+            self.assembly_selections[assembly_name]['failures'] = selected_failures
+            self.update_button_labels()
         dialog.accept()
 
     def show_analyze_size_options(self): #OBSOLETE
@@ -493,13 +576,12 @@ class SizingTab(QWidget):
             print("Using default thickness range: 1.0 to 10.0 mm, step 0.5 mm")
         
         # Create analysis instance
-        self.calculator = Calculator()
+        self.calculator = Calculator(parent=self.parent)
         
         # Run the sizing analysis
         results = self.calculator.rf_materialStrength(
             materials=self.materials,
             failure_types=self.failures,
-            model_data=self.parent.model_data,
             property_id=property_id,
             thickness_range=thickness_range,
             assembly_type=self.current_assembly_type
