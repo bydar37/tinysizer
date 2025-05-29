@@ -425,14 +425,20 @@ class MainWindow(QMainWindow):
         layout=QVBoxLayout(dev_tab)
 
         text = (
-        "🔴 wrong property colorization\n"
-        "🔴 need for assembly isolate elements\n"
-        "🔴 mask elements option\n"
-        "🔴 maybe better indication of failure/material selection in sizing tab\n"
-        "🔴 make one sizing failure\n"
-        "🔴 center writings on that table, without loop preferably\n"
-        "🔴 differentiate inputs and outputs on that table again\n"
-        )
+        "👤 BURAK\n"
+        "🔴 geometry tab, property colorization düzeltilmeli\n"
+        "🔴 hide elements düzeltilmeli\n\n"
+        
+        "👤 ÖMER\n"
+        "🔴 sizing tabında tabloyu, input ve outputlar daha belli olacak şekilde ayıralım\n"
+        "🔴 sizing_tab.py'dan assembly ile alakalı şeyleri çıkarıp bunları assembly.py\n"
+        "içine koymayı deneyelim, sanki böyle daha yönetilebilir gibi (uzun claude inputu gerektiriyor)\n\n"
+        
+        "👤 YAMAN\n"
+        "🔴 calculations.py'ın düzgün ve temiz olduğundan emin ol\n"
+        "🔴 rf_materialStrength() benzeri başka bir failure koy, örneğin rf_materialBarStrength()\n\n"
+    )
+
         placeholder_label = QLabel(text)
         placeholder_label.setAlignment(Qt.AlignLeft)
         #placeholder_label.setStyleSheet("font-size: 24pt; color: gray;")
@@ -995,6 +1001,7 @@ class MainWindow(QMainWindow):
             
             # Update geometry view with loaded data - just show the model initially
             self.pyv_plotter.plot_mesh(model_data)
+            self.populate_tree(model_data)
             
             # Populate result selection controls if they exist
             self.populate_result_controls(model_data)
@@ -1293,62 +1300,145 @@ class MainWindow(QMainWindow):
         """Handle clicks on tree items"""
         return None
 
-    #BUGGY !!!
+    #BUGGY !
     def hide_elements(self):
         if self.pyv_plotter.mesh is None:
-            print("No mesh available")
             return
         
-        # Store original mesh
-        if isinstance(self.pyv_plotter.mesh, pv.MultiBlock):
-            self.original_mesh = self.pyv_plotter.mesh.combine()
-        else:
-            self.original_mesh = self.pyv_plotter.mesh.copy()
-        
-        self.hidden_cells = set()
-            
-        def update_plot(picked):
-            # Handle MultiBlock selection
-            if isinstance(picked, pv.MultiBlock):
-                blocks = [b for b in picked if b is not None and b.n_cells > 0]
-                if not blocks:
-                    return
-                # Combine all selected IDs from blocks
-                selected_ids = []
-                for block in blocks:
-                    if 'orig_extract_id' in block.cell_data:
-                        selected_ids.extend(block.cell_data['orig_extract_id'])
+        # Store original mesh once
+        if not hasattr(self, 'original_mesh') or self.original_mesh is None:
+            if isinstance(self.pyv_plotter.mesh, pv.MultiBlock):
+                self.original_mesh = self.pyv_plotter.mesh.combine()
             else:
-                # Single mesh case
-                if picked.n_cells == 0 or 'orig_extract_id' not in picked.cell_data:
-                    return
-                selected_ids = picked.cell_data['orig_extract_id']
-
-            # Now store hidden cells
-            self.hidden_cells.update(selected_ids)
-            print(f"✅ Selected and hiding {len(selected_ids)} cells: {selected_ids}")
-
-            # Create mask to hide selected cells
-            mask = np.ones(self.original_mesh.n_cells, dtype=bool)
-            if self.hidden_cells:
-                mask[list(self.hidden_cells)] = False
-
-            visible_mesh = self.original_mesh.extract_cells(mask)
-
+                self.original_mesh = self.pyv_plotter.mesh.copy()
+        
+        if not hasattr(self, 'hidden_cells'):
+            self.hidden_cells = set()
+        
+        def selection_callback(picked_cells):
+            if picked_cells is None:
+                return
+            
+            current_mesh = self.pyv_plotter.mesh
+            if current_mesh is None:
+                return
+            
+            # Get selected cell centers
+            selected_centers = None
+            if isinstance(picked_cells, pv.MultiBlock):
+                combined = picked_cells.combine()
+                if combined.n_cells > 0:
+                    selected_centers = combined.cell_centers().points
+            elif hasattr(picked_cells, 'n_cells') and picked_cells.n_cells > 0:
+                selected_centers = picked_cells.cell_centers().points
+            
+            if selected_centers is None:
+                return
+            
+            # Find corresponding cells in original mesh
+            original_centers = self.original_mesh.cell_centers().points
+            new_hidden = set()
+            
+            for center in selected_centers:
+                distances = np.linalg.norm(original_centers - center, axis=1)
+                closest_id = np.argmin(distances)
+                if distances[closest_id] < 1e-6:
+                    new_hidden.add(closest_id)
+            
+            if new_hidden:
+                self.hidden_cells.update(new_hidden)
+                _update_visualization()
+        
+        def _update_visualization():
+            all_cells = np.arange(self.original_mesh.n_cells)
+            visible_mask = ~np.isin(all_cells, list(self.hidden_cells))
+            
+            if not np.any(visible_mask):
+                return
+            
+            visible_mesh = self.original_mesh.extract_cells(visible_mask)
+            
+            # Store current camera position
+            camera_position = self.pyv_plotter.plotter.camera_position
+            
+            # Preserve all scalar data from original mesh
+            if hasattr(self.original_mesh, 'cell_data'):
+                for key, data in self.original_mesh.cell_data.items():
+                    if len(data) == self.original_mesh.n_cells:
+                        # Extract the same cells for each scalar array
+                        visible_mesh.cell_data[key] = data[visible_mask]
+            
+            if hasattr(self.original_mesh, 'point_data'):
+                for key, data in self.original_mesh.point_data.items():
+                    if key in visible_mesh.point_data:
+                        visible_mesh.point_data[key] = visible_mesh.point_data[key]
+            
+            # Set active scalars if they existed
+            if hasattr(self.original_mesh.cell_data, 'active_scalars_name') and self.original_mesh.cell_data.active_scalars_name:
+                if self.original_mesh.cell_data.active_scalars_name in visible_mesh.cell_data:
+                    visible_mesh.cell_data.active_scalars_name = self.original_mesh.cell_data.active_scalars_name
+            
             self.pyv_plotter.plotter.clear()
-            self.pyv_plotter.plotter.add_mesh(visible_mesh, name='main_mesh', pickable=True)
-
+            self.pyv_plotter.plotter.add_mesh(
+                visible_mesh, 
+                name='main_mesh', 
+                pickable=True,
+                show_edges=True  # Let PyVista handle coloring based on scalars
+            )
+            
+            # Restore camera position to prevent auto-centering
+            self.pyv_plotter.plotter.camera_position = camera_position
+            
             self.pyv_plotter.mesh = visible_mesh
-
-            # Reset scalar field if present
-            if hasattr(visible_mesh, 'cell_data') and 'values' in visible_mesh.cell_data:
-                visible_mesh.cell_data.active_scalars_name = 'values'
-
             self.pyv_plotter.plotter.render()
         
-        # Always disable picking first, then enable
+        def show_all():
+            """Restore original mesh and view"""
+            self.hidden_cells.clear()
+            
+            # Store current camera position
+            camera_position = self.pyv_plotter.plotter.camera_position
+            
+            self.pyv_plotter.plotter.clear()
+            self.pyv_plotter.plotter.add_mesh(
+                self.original_mesh,
+                name='main_mesh',
+                pickable=True,
+                show_edges=True  # Let PyVista handle original coloring
+            )
+            
+            # Restore camera position
+            self.pyv_plotter.plotter.camera_position = camera_position
+            
+            self.pyv_plotter.mesh = self.original_mesh.copy()
+            self.pyv_plotter.plotter.render()
+        
+        def key_callback(key):
+            if key.lower() == 'u' and hasattr(self, 'hidden_cells'):
+                self.hidden_cells.clear()
+                _update_visualization()
+            elif key.lower() == 's':
+                show_all()
+        
+        # Setup picking
         self.pyv_plotter.plotter.disable_picking()
-        self.pyv_plotter.plotter.enable_cell_picking(callback=update_plot, show=False)
+        self.pyv_plotter.plotter.enable_rubber_band_style()
+        self.pyv_plotter.plotter.enable_cell_picking(
+            callback=selection_callback,
+            show=False,
+            color='red',
+            tolerance=0.025,
+            use_actor=True
+        )
+        
+        # Add key callbacks with explicit key handling
+        self.pyv_plotter.plotter.add_key_event('u', lambda: key_callback('u'))
+        self.pyv_plotter.plotter.add_key_event('U', lambda: key_callback('u'))
+        self.pyv_plotter.plotter.add_key_event('s', lambda: key_callback('s'))
+        self.pyv_plotter.plotter.add_key_event('S', lambda: key_callback('s'))
+        
+        print("Controls: 'U' = unhide, 'S' = show all, 'R' = rubber band select")
+
 
         """
         example:
@@ -1439,27 +1529,3 @@ class MainWindow(QMainWindow):
         else:
             print("other tab")
             self.dock.hide()
-    '''
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-
-        if (hasattr(self, 'image_label') and 
-            hasattr(self, 'original_pixmap') and 
-            self.tabs.currentIndex() == 0):
-            
-            # Calculate available dimensions
-            tab_height = self.tabs.tabBar().height()
-            margins = 10
-            available_height = self.height() - tab_height - margins
-            available_width = min(310, self.width() // 3)
-
-            # Avoid unnecessary scaling if size hasn't changed
-            current_pixmap = self.image_label.pixmap()
-            if current_pixmap is None or current_pixmap.size() != (available_width, available_height):
-                scaled_pixmap = self.original_pixmap.scaled(
-                    available_width, available_height,
-                    Qt.IgnoreAspectRatio,
-                    Qt.SmoothTransformation
-                )
-                self.image_label.setPixmap(scaled_pixmap)
-    '''
