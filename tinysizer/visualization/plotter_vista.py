@@ -39,7 +39,9 @@ class PyVistaMeshPlotter(QFrame):
 
     #SIZING TABDA PROP CİZER
     #redundant olabilir alttaki plot_mesh'den bazi yerleri kullanip kısaltilabilir mi ? -ymn
-    def plot_sizing_tab(self,model_data,pid): 
+    def plot_sizing_tab(self,model_data,pid):
+        import random
+        import matplotlib.colors as mcolors
         pid2eid=model_data.bdf.get_property_id_to_element_ids_map()
         nodes,elements=[],[]
         
@@ -159,6 +161,12 @@ class PyVistaMeshPlotter(QFrame):
         self.mesh_sizing=pv.PolyData()
         # Combine all faces for a single mesh
         faces = quad_faces + tri_faces
+        golden_ratio = 0.618033988749895
+        hue = (random.randint(1, 100) * golden_ratio) % 1.0
+        saturation = 0.85
+        value = 0.95
+        random_color = mcolors.hsv_to_rgb([hue, saturation, value])
+        #random_color = [random.uniform(0.6, 0.95) for _ in range(3)]  # RGB için 3 rastgele değer
         if faces:
             # Convert to the format PyVista expects
             faces_array = []
@@ -170,7 +178,7 @@ class PyVistaMeshPlotter(QFrame):
             self.mesh_sizing = self.mesh_sizing.merge(surface_mesh) #later for colorizng by property -ymn
 
             
-            self.plotter.add_mesh(surface_mesh, show_edges=True, color=[0.8, 0.8, 0.8], 
+            self.plotter.add_mesh(surface_mesh, show_edges=True, color=random_color, 
                                 edge_color='black', line_width=1.5, opacity=1.0)
             
             print(f"Created mesh with {surface_mesh.n_points} points and {surface_mesh.n_cells} cells")
@@ -183,7 +191,7 @@ class PyVistaMeshPlotter(QFrame):
             line_mesh.lines = flat_lines
             self.mesh_sizing = self.mesh_sizing.merge(line_mesh) #later for colorizng by property -ymn
 			
-            self.plotter.add_mesh(line_mesh, show_edges=True, color=[0.8, 0.8, 0.8], 
+            self.plotter.add_mesh(line_mesh, show_edges=True, color=random_color, 
                                                 edge_color='black', line_width=1.5, opacity=1.0)
                                                 
         text=f"{model_data.bdf.properties[pid].type} {pid}"
@@ -527,109 +535,71 @@ class PyVistaMeshPlotter(QFrame):
 
         print("Rendering complete")
 
-
-    def create_element_mapping_after_merge(self):
-        """Build mapping AFTER mesh creation - accounts for PyVista ordering"""
-        # Surface elements come first in merged mesh
-        surface_cell_idx = 0
-        for eid,elem in self.model_data.bdf.elements.items():
-            if elem.type in ["CQUAD4", "CTRIA3"]:
-                self.element_to_cell_map[eid] = surface_cell_idx
-                surface_cell_idx += 1
-        
-        # Line elements come after surface elements
-        line_cell_idx = surface_cell_idx  # Start where surface ended
-        for eid,elem in self.model_data.bdf.elements.items():
-            if elem.type == "CBAR":
-                self.element_to_cell_map[eid] = line_cell_idx
-                line_cell_idx += 1
-
-    #BUGGGGGGGGGY!
-
+    #BUGGGGGGGGGY!-ymn / not properly but works-bydar
     def colorize_by_property(self, model_data):
-    #Colorize mesh elements by their property IDs with unique colors
         import matplotlib.colors as mcolors
-        import random
-        
-        # Build array to hold actual PID values for each cell
-        element_to_pid = np.full(self.mesh.n_cells, -1, dtype=int)
-        missing_elements = []
-        
-        # First pass - collect all unique PIDs from the model
-        all_pids = set()
-        for eid in self.element_to_cell_map.keys():
-            if eid in model_data.bdf.elements:
-                pid = model_data.bdf.elements[eid].pid
-                all_pids.add(pid)
-        
-        # Sort PIDs for consistent ordering
-        unique_pids = sorted(list(all_pids))
-        num_props = len(unique_pids)
-        print(f"Found {num_props} unique property IDs")
-        
-        # Create mapping from PID to color index
-        pid_to_index = {pid: idx for idx, pid in enumerate(unique_pids)}
-        
-        # Second pass - assign colors to elements
-        el_pid_data = []  # For CSV export
-        for eid, cell_idx in self.element_to_cell_map.items():
-            if eid in model_data.bdf.elements:
-                pid = model_data.bdf.elements[eid].pid
-                color_idx = pid_to_index[pid]  # Get consistent color index
-                element_to_pid[cell_idx] = color_idx  # Store color index, not PID
-                
-                el_pid_data.append({
-                    "Element ID": eid,
-                    "Property ID": pid,
-                    "Color Index": color_idx,
-                    "Type": model_data.bdf.elements[eid].type
-                })
-            else:
-                missing_elements.append(eid)
-                
-        # Create custom colormap with distinct colors
-        if num_props <= 10:
-            # Use tab10 for up to 10 properties
-            cmap = cm.get_cmap('tab10', num_props)
-        elif num_props <= 20:
-            # Use tab20 for up to 20 properties
-            cmap = cm.get_cmap('tab20', num_props)
-        else:
-            # Generate evenly spaced HSV colors
-            hsv_colors = []
-            golden_ratio = (1 + 5 ** 0.5) / 2
-            for i in range(num_props):
-                hue = (i * golden_ratio) % 1
-                hsv_colors.append((hue, 0.85, 0.9))
-            colors = [mcolors.hsv_to_rgb(hsv) for hsv in hsv_colors]
-        
-        # Create custom colormap
-        cmap = mcolors.ListedColormap(colors)
-        
-        # Store the color indices as scalars
-        self.mesh.cell_data["Property Index"] = element_to_pid
-        
-        # Clear and redraw
+        from collections import defaultdict
+
+        pid2eid = model_data.bdf.get_property_id_to_element_ids_map()
+        golden_ratio = 0.618033988749895
+
         self.plotter.clear()
         self.add_axes()
-        
-        # Add mesh with property colors
-        self.plotter.add_mesh(
-            self.mesh,
-            scalars="Property Index",
-            show_edges=True,
-            cmap=cmap,
-            show_scalar_bar=False,
-        )
-        # Export mapping data
-        df = pd.DataFrame(el_pid_data)
-        df.to_csv("element_property_mapping.csv", index=False)
-        
-        if missing_elements:
-            print(f"Warning: {len(missing_elements)} elements not found in BDF")
-        
+
+        for i, (pid, elids) in enumerate(pid2eid.items()):
+            # Renk belirle (HSV → RGB)
+            hue = (i * golden_ratio) % 1.0
+            rgb = mcolors.hsv_to_rgb([hue, 0.85, 0.95])
+
+            nodes = set()
+            for eid in elids:
+                nodes.update(model_data.bdf.elements[eid].nodes)
+
+            node_id_to_idx = {}
+            points = []
+            idx = 0
+            for nid in nodes:
+                pos = model_data.bdf.nodes[nid].get_position()
+                node_id_to_idx[nid] = idx
+                points.append(pos)
+                idx += 1
+            points = np.array(points)
+
+            faces = []
+            for eid in elids:
+                elem = model_data.bdf.elements[eid]
+                face = []
+                valid = True
+                for nid in elem.nodes:
+                    if nid in node_id_to_idx:
+                        face.append(node_id_to_idx[nid])
+                    else:
+                        valid = False
+                        break
+                if valid:
+                    if elem.type == "CQUAD4":
+                        faces.append([4] + face)
+                    elif elem.type == "CTRIA3":
+                        faces.append([3] + face)
+
+            if not faces:
+                continue
+
+            # Flatten faces for PyVista
+            face_array = []
+            for f in faces:
+                face_array.extend(f)
+
+            try:
+                mesh = pv.PolyData(points, face_array)
+                self.plotter.add_mesh(mesh, show_edges=True, color=rgb,
+                                    edge_color='black', line_width=1.0, opacity=1.0)
+                print(f"Drew PID {pid} with {len(faces)} elements")
+            except Exception as e:
+                print(f"Error drawing PID {pid}: {e}")
+
         self.plotter.reset_camera()
-        self.plotter.render()
+        self.plotter.update()
 
     def reset_view(self):
         """Reset the camera view"""
@@ -666,3 +636,21 @@ class PyVistaMeshPlotter(QFrame):
         # Plot the dataset
         self.has_rendered = True
         print(f"Plotting: {random_example}")
+
+
+    def create_element_mapping_after_merge(self):
+        """Build mapping AFTER mesh creation - accounts for PyVista ordering"""
+        # Surface elements come first in merged mesh
+        surface_cell_idx = 0
+        for eid,elem in self.model_data.bdf.elements.items():
+            if elem.type in ["CQUAD4", "CTRIA3"]:
+                self.element_to_cell_map[eid] = surface_cell_idx
+                surface_cell_idx += 1
+        
+        # Line elements come after surface elements
+        line_cell_idx = surface_cell_idx  # Start where surface ended
+        for eid,elem in self.model_data.bdf.elements.items():
+            if elem.type == "CBAR":
+                self.element_to_cell_map[eid] = line_cell_idx
+                line_cell_idx += 1
+
